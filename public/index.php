@@ -69,7 +69,7 @@ $server->set([
 $server->on('request', function (ServerRequestInterface $request) {
     return new Response(200, [
         'content-type' => ['text/html']
-    ], fopen(__DIR__ . '/../socket.html', 'r+'));
+    ], fopen(__DIR__ . '/socket.html', 'r+'));
 });
 
 $server->start();
