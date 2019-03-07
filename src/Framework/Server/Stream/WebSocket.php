@@ -78,7 +78,7 @@ class WebSocket
                 if (isset($data[1])) {
                     $reason = $this->unmask($data);
                 }
-                parent::close($reason);
+                $this->close($reason);
                 throw new CloseException();
                 return null;
                 break;
@@ -113,7 +113,7 @@ class WebSocket
     public function close(string $reason = ''): bool
     {
         $this->write(substr($reason, 0, 125), self::OPCODE_CLOSE);
-        return parent::close();
+        return $this->stream->close();
     }
 
     public function detach(): Stream
