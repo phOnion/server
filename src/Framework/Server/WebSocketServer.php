@@ -19,8 +19,6 @@ class WebSocketServer extends HttpServer
                     ->then(function(WebSocket $socket) use ($request) {
                         $this->trigger('open', $request);
 
-                        return $socket;
-                    })->then(function (WebSocket $socket) {
                         $resource = $socket->detach();
                         detach($resource);
                         attach($resource, function ($stream) {
@@ -33,19 +31,18 @@ class WebSocketServer extends HttpServer
                                     $this->trigger('message', $socket, $data);
                                 }
                             } catch (CloseException $ex) {
-                                // nothing to do
+                                $this->trigger('close');
                             }
-
-                            $socket->close();
-                            $this->trigger('close');
                         });
                     })->otherwise(function ($ex) use ($stream) {
-                        $stream->close();
+                        var_dump($ex->getMessage());
+                        $this->trigger('close');
                     });
             } else {
                 parent::processRequest($request, $stream);
             }
         } catch (\Throwable $ex) {
+            // var_dump($ex->getMessage());
             $stream->close();
         }
     }
