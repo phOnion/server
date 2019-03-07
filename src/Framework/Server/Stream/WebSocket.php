@@ -3,6 +3,7 @@ namespace Onion\Framework\Server\Stream;
 
 use Onion\Framework\EventLoop\Stream\Stream;
 use Onion\Framework\Server\Stream\Exceptions\CloseException;
+use Onion\Framework\Server\Stream\Exceptions\UnknownOpcodeException;
 
 class WebSocket extends Stream
 {
@@ -66,7 +67,13 @@ class WebSocket extends Stream
 
         switch (ord($data)) {
             case self::OPCODE_CLOSE:
+                $reason = '';
+                if (isset($data[1])) {
+                    $reason = $this->unmask($data);
+                }
+                parent::close($reason);
                 throw new CloseException();
+                return null;
                 break;
             case self::OPCODE_PING:
                 $reason = $this->unmask($data);
@@ -74,31 +81,31 @@ class WebSocket extends Stream
                 return null;
                 break;
             case self::OPCODE_PONG:
+                echo "pong\n";
                 return null;
                 break;
             case self::OPCODE_TEXT:
             case self::OPCODE_BINARY:
                 return $this->unmask($data);
             default:
-                $this->close();
-                throw new CloseException();
+                throw new UnknownOpcodeException();
                 break;
         }
     }
 
-    public function ping(string $text = null)
+    public function ping(string $text = '')
     {
-        return parent::write($this->encode(substr((string) $text, 0, 125), self::OPCODE_PING));
+        return $this->write(substr($text, 0, 125), self::OPCODE_PING) > 0;
     }
 
-    public function pong(string $text = null)
+    public function pong(string $text = '')
     {
-        return parent::write($this->encode(substr((string) $text, 0, 125), self::OPCODE_PONG));
+        return $this->write(substr($text, 0, 125), self::OPCODE_PONG) > 0;
     }
 
-    public function close(): bool
+    public function close(string $reason = ''): bool
     {
-        $this->write('', self::OPCODE_CLOSE);
+        $this->write(substr($reason, 0, 125), self::OPCODE_CLOSE);
         return parent::close();
     }
 }
