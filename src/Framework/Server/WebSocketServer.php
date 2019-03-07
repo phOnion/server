@@ -20,10 +20,8 @@ class WebSocketServer extends HttpServer
                     ->then(function(WebSocket $socket) use ($request) {
                         $this->trigger('open', $request);
 
-                        $resource = $socket->detach();
-                        detach($resource);
-                        attach($resource, function ($stream) {
-                            $socket = new WebSocket($stream->detach());
+                        attach($socket->detach(), function ($stream) {
+                            $socket = new WebSocket($stream);
 
                             try {
                                 $data = $socket->read();
