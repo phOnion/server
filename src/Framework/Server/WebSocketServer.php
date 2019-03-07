@@ -2,7 +2,6 @@
 namespace Onion\Framework\Server;
 
 use function Onion\Framework\EventLoop\attach;
-use function Onion\Framework\EventLoop\detach;
 use Onion\Framework\EventLoop\Stream\Stream;
 use Onion\Framework\Server\Stream\Exceptions\CloseException;
 use Onion\Framework\Server\Stream\Exceptions\UnknownOpcodeException;
@@ -20,7 +19,7 @@ class WebSocketServer extends HttpServer
                     ->then(function(WebSocket $socket) use ($request) {
                         $this->trigger('open', $request);
 
-                        attach($socket->detach(), function ($stream) {
+                        attach($socket->detach()->detach(), function ($stream) {
                             $socket = new WebSocket($stream);
 
                             try {
