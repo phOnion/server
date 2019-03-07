@@ -7,12 +7,13 @@ use function Onion\Framework\EventLoop\detach;
 use function Onion\Framework\EventLoop\loop;
 use function Onion\Framework\Promise\async;
 use Onion\Framework\EventLoop\Stream\Stream;
-use Onion\Framework\Promise\Promise;
 use Onion\Framework\Promise\RejectedPromise;
 use Onion\Framework\Server\Interfaces\ServerInterface;
 
 class TcpServer implements ServerInterface
 {
+    private const MAX_PAYLOAD_SIZE = 1024 * 1024 * 2;
+
     private $listeners = [];
     /** @var callable[] $handlers */
     private $handlers = [];
@@ -43,6 +44,11 @@ class TcpServer implements ServerInterface
         $this->configs = $configuration;
     }
 
+    public function getMaxPackageSize(): int
+    {
+        return $this->configs['package_max_length'] ?? self::MAX_PAYLOAD_SIZE;
+    }
+
     public function start()
     {
         $this->trigger('start');
@@ -69,19 +75,14 @@ class TcpServer implements ServerInterface
                     );
                 }
 
-                $errCode = 0;
-                $errMessage = '';
-
-                $params = [$address, $errCode, $errMessage, $options,];
-
                 $secure = ($type & self::TYPE_SECURE) === self::TYPE_SECURE;
-
+                $context = stream_context_create();
                 if ($secure) {
-                    $params[] = $this->getSecurityContext();
+                    $this->getSecurityContext($context);
                 }
 
-                $socket = @stream_socket_server(... $params);
-
+                $socket = @stream_socket_server($address, $errCode, $errMessage, $options, $context);
+                stream_set_blocking($socket, 0);
 
                 if (!$socket) {
                     throw new \RuntimeException(
@@ -123,7 +124,7 @@ class TcpServer implements ServerInterface
         loop()->start();
     }
 
-    private function getSecurityContext()
+    private function getSecurityContext($context)
     {
         $options = [
             'local_cert' => $this->configs['ssl_cert_file'] ?? null,
@@ -132,15 +133,16 @@ class TcpServer implements ServerInterface
             'allow_self_signed' => $this->configs['ssl_allow_self_signed'] ?? null,
             'verify_depth' => $this->configs['ssl_verify_depth'] ?? null,
             'cafile' => $this->configs['ssl_client_cert_file'] ?? null,
+            'passphrase' => $this->configs['ssl_cert_passphrase'] ?? null,
         ];
 
         $options = array_filter($options, function($value) {
             return $value !== null;
         });
 
-        return stream_context_create([
-            'ssl' => $options,
-        ]);
+        foreach ($options as $key => $value) {
+            stream_context_set_option($context, 'ssl', $key, $value);
+        }
     }
 
     protected function trigger(string $event, ... $args)

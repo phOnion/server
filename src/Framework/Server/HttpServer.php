@@ -54,7 +54,7 @@ class HttpServer extends TcpServer
 
     protected function buildRequest(Stream $stream): ServerRequestInterface
     {
-        $req = parse_request($stream->read());
+        $req = parse_request($stream->read($this->getMaxPackageSize()));
         $request = new ServerRequest(
             $req->getMethod(),
             $req->getUri(),
@@ -64,14 +64,13 @@ class HttpServer extends TcpServer
         );
 
 
-        // $request->
         $pattern = '/^multipart\/form-data; boundary=(?P<boundary>.*)$/i';
         if (preg_match($pattern, $request->getHeaderLine('content-type'), $matches)) {
             $request = $this->getMultiPartRequest($request, $matches['boundary']);
         } else if (preg_match('/^application\/x-www-form-urlencoded/', $request->getHeaderLine('content-type'), $matches)) {
-            $request = $request->withParsedBody(parse_query($request->getBody()));
+            $request = $request->withParsedBody(parse_query($req->getBody()));
         } else if (preg_match('/^application\/json/', $request->getHeaderLine('content-type'))) {
-            $request = $request->withParsedBody(json_decode((string) $request->getBody(), true));
+            $request = $request->withParsedBody(json_decode((string) $req->getBody(), true));
         }
 
         return $request;
@@ -110,13 +109,8 @@ class HttpServer extends TcpServer
                             );
                             if (isset($names['filename']) && $names['filename'] !== '' && $names['filename'] !== null) {
                                 $filename = $names['filename'];
-                                continue 2;
-                            }
-
-                            if (isset($names['name']) && $names['name'] !== ''&& $names['name'] !== null) {
+                            } else if (isset($names['name']) && $names['name'] !== ''&& $names['name'] !== null) {
                                 $name = $names['name'];
-                                var_dump($name);
-
                             }
                             break;
                         case 'content-type':
@@ -143,7 +137,6 @@ class HttpServer extends TcpServer
             }
         }
 
-        ;
         return $request->withParsedBody($parsed)
             ->withUploadedFiles($files);
     }
