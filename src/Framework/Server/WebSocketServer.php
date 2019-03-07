@@ -5,6 +5,7 @@ use function Onion\Framework\EventLoop\attach;
 use function Onion\Framework\EventLoop\detach;
 use Onion\Framework\EventLoop\Stream\Stream;
 use Onion\Framework\Server\Stream\Exceptions\CloseException;
+use Onion\Framework\Server\Stream\Exceptions\UnknownOpcodeException;
 use Onion\Framework\Server\Stream\WebSocket;
 
 class WebSocketServer extends HttpServer
@@ -32,10 +33,12 @@ class WebSocketServer extends HttpServer
                                 }
                             } catch (CloseException $ex) {
                                 $this->trigger('close');
+                            } catch (UnknownOpcodeException $ex) {
+                                $socket->close();
+                                $this->trigger('close');
                             }
                         });
                     })->otherwise(function ($ex) use ($stream) {
-                        var_dump($ex->getMessage());
                         $this->trigger('close');
                     });
             } else {
