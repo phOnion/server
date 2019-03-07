@@ -45,7 +45,6 @@ class WebSocketServer extends HttpServer
                 parent::processRequest($request, $stream);
             }
         } catch (\Throwable $ex) {
-            // var_dump($ex->getMessage());
             $stream->close();
         }
     }
