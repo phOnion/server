@@ -5,13 +5,20 @@ use Onion\Framework\EventLoop\Stream\Stream;
 use Onion\Framework\Server\Stream\Exceptions\CloseException;
 use Onion\Framework\Server\Stream\Exceptions\UnknownOpcodeException;
 
-class WebSocket extends Stream
+class WebSocket
 {
     public const OPCODE_TEXT = 129;
     public const OPCODE_BINARY = 130;
     public const OPCODE_CLOSE = 136;
     public const OPCODE_PING = 137;
     public const OPCODE_PONG = 138;
+
+    private $stream;
+
+    public function __construct(Stream $stream)
+    {
+        $this->stream = $stream;
+    }
 
     private function encode($text, $opcode = self::OPCODE_TEXT): string
     {
@@ -28,7 +35,7 @@ class WebSocket extends Stream
         return $header.$text;
     }
 
-    public function unmask(string $payload): string
+    private function unmask(string $payload): string
     {
         $length = ord($payload[1]) & 127;
 
@@ -54,12 +61,12 @@ class WebSocket extends Stream
 
     public function write($data, $opcode = self::OPCODE_TEXT): ?int
     {
-        return parent::write($this->encode($data, $opcode));
+        return $this->stream->write($this->encode($data, $opcode));
     }
 
     public function read(int $size = 8192): ?string
     {
-        $data = parent::read($size);
+        $data = $this->stream->read($size);
 
         if ($data === null) {
             return null;
@@ -107,5 +114,13 @@ class WebSocket extends Stream
     {
         $this->write(substr($reason, 0, 125), self::OPCODE_CLOSE);
         return parent::close();
+    }
+
+    public function detach(): Stream
+    {
+        $stream = $this->stream;
+        $this->stream = null;
+
+        return $stream;
     }
 }
