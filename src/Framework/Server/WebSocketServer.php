@@ -35,7 +35,7 @@ class WebSocketServer extends HttpServer
                                 $this->trigger('close');
                             }
                         });
-                    })->otherwise(function ($ex) use ($stream) {
+                    })->otherwise(function (\Throwable $ex) {
                         $this->trigger('close');
                     });
             } else {
