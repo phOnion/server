@@ -9,7 +9,7 @@ interface ServerInterface
     public const TYPE_SECURE = 8;
 
     public function start();
-    public function addListener(string $address, int $port, int $type);
+    public function addListener(string $address, int $port, int $type, array $options = []);
     public function on(string $event, \Closure $callback);
     public function set(array $configuration);
 }

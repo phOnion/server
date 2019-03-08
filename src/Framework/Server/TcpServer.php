@@ -20,17 +20,23 @@ class TcpServer implements ServerInterface
 
     private $configs = [];
 
-    public function __construct(string $interface, ?int $port = null, int $type = self::TYPE_SOCK)
+    public function __construct(string $interface, ?int $port = null, int $type = self::TYPE_SOCK, array $options = [])
     {
         $this->listeners[] = [
-            $interface, $port, $type
+            'interface' => $interface,
+            'port' => $port,
+            'type' => $type,
+            'options' => $options,
         ];
     }
 
-    public function addListener(string $interface, int $port, int $type = 0)
+    public function addListener(string $interface, int $port, int $type, array $options = [])
     {
         $this->listeners[] = [
-            $interface, $port, $type
+            'interface' => $interface,
+            'port' => $port,
+            'type' => $type,
+            'config' => $options,
         ];
     }
 
@@ -54,18 +60,22 @@ class TcpServer implements ServerInterface
         $this->trigger('start');
 
         foreach ($this->listeners as $listener) {
-            list($interface, $port, $type)=$listener;
+            $interface = $port = $type = $config = null;
 
-            async(function () use ($interface, $port, $type) {
+            extract(array_filter($listener, function ($value) {
+                return $value !== null || (is_array($value) && !empty($value));
+            }), EXTR_IF_EXISTS | EXTR_OVERWRITE);
+
+            async(function () use ($interface, $port, $type, $config) {
                 $address = null;
                 $options = 0;
 
                 if (($type & self::TYPE_SOCK) === self::TYPE_SOCK) {
                     $address = "unix://{$interface}";
-                    $options = STREAM_SERVER_BIND |STREAM_SERVER_LISTEN;
+                    $options = STREAM_SERVER_BIND | STREAM_SERVER_LISTEN;
                 } else if (($type & self::TYPE_TCP) === self::TYPE_TCP) {
                     $address = "tcp://{$interface}:{$port}";
-                    $options = STREAM_SERVER_BIND |STREAM_SERVER_LISTEN;
+                    $options = STREAM_SERVER_BIND | STREAM_SERVER_LISTEN;
                 } else if (($type & self::TYPE_UDP) === self::TYPE_UDP) {
                     $address = "udp://{$interface}:{$port}";
                     $options = STREAM_SERVER_BIND;
@@ -75,13 +85,10 @@ class TcpServer implements ServerInterface
                     );
                 }
 
-                $secure = ($type & self::TYPE_SECURE) === self::TYPE_SECURE;
-                $context = stream_context_create();
-                if ($secure) {
-                    $this->getSecurityContext($context);
-                }
-
-                $socket = @stream_socket_server($address, $errCode, $errMessage, $options, $context);
+                $socket = @stream_socket_server($address, $errCode, $errMessage, $options, $this->createContext(array_merge(
+                    $this->configs,
+                    $config
+                ), ($type & self::TYPE_SECURE) === self::TYPE_SECURE));
                 stream_set_blocking($socket, 0);
 
                 if (!$socket) {
@@ -123,24 +130,35 @@ class TcpServer implements ServerInterface
         loop()->start();
     }
 
-    private function getSecurityContext($context)
+    private function createContext(array $configs = [], bool $secure = false)
     {
-        $options = [
-            'local_cert' => $this->configs['ssl_cert_file'] ?? null,
-            'local_pk' => $this->configs['ssl_key_file'] ?? null,
-            'verify_peer' => $this->configs['ssl_verify_peer'] ?? null,
-            'allow_self_signed' => $this->configs['ssl_allow_self_signed'] ?? null,
-            'verify_depth' => $this->configs['ssl_verify_depth'] ?? null,
-            'cafile' => $this->configs['ssl_client_cert_file'] ?? null,
-            'passphrase' => $this->configs['ssl_cert_passphrase'] ?? null,
-        ];
+        $context = stream_context_create();
+        if (isset($configs['backlog'])) {
+            stream_context_set_option($context, 'tcp', 'backlog', $configs['backlog']);
+        }
 
-        $options = array_filter($options, function($value) {
-            return $value !== null;
-        });
+        if (isset($this->configs['tcp_nodelay'])) {
+            stream_context_set_option($context, 'tcp', 'tcp_nodelay', $configs['tcp_nodelay']);
+        }
 
-        foreach ($options as $key => $value) {
-            stream_context_set_option($context, 'ssl', $key, $value);
+        if ($secure) {
+            $options = [
+                'local_cert' => $configs['ssl_cert_file'] ?? null,
+                'local_pk' => $configs['ssl_key_file'] ?? null,
+                'verify_peer' => $configs['ssl_verify_peer'] ?? null,
+                'allow_self_signed' => $configs['ssl_allow_self_signed'] ?? null,
+                'verify_depth' => $configs['ssl_verify_depth'] ?? null,
+                'cafile' => $this->configs['ssl_client_cert_file'] ?? null,
+                'passphrase' => $configs['ssl_cert_passphrase'] ?? null,
+            ];
+
+            $options = array_filter($options, function($value) {
+                return $value !== null;
+            });
+
+            foreach ($options as $key => $value) {
+                stream_context_set_option($context, 'ssl', $key, $value);
+            }
         }
     }
 
