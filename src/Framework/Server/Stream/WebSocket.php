@@ -1,21 +1,24 @@
 <?php
 namespace Onion\Framework\Server\Stream;
 
-use Onion\Framework\EventLoop\Stream\Stream;
 use Onion\Framework\Server\Stream\Exceptions\CloseException;
 use Onion\Framework\Server\Stream\Exceptions\UnknownOpcodeException;
+use Onion\Framework\EventLoop\Stream\Interfaces\StreamInterface;
 
 class WebSocket
 {
-    public const OPCODE_TEXT = 129;
-    public const OPCODE_BINARY = 130;
-    public const OPCODE_CLOSE = 136;
-    public const OPCODE_PING = 137;
-    public const OPCODE_PONG = 138;
+    public const OPCODE_TEXT = 0x01;
+    public const OPCODE_BINARY = 0x02;
+    public const OPCODE_CLOSE = 0x08;
+    public const OPCODE_PING = 0x09;
+    public const OPCODE_PONG = 0x0A;
+
+    public const OPCODE_CONTINUATION = 0x00;
+    public const OPCODE_FINISHED = 0b10000000;
 
     private $stream;
 
-    public function __construct(Stream $stream)
+    public function __construct(StreamInterface $stream)
     {
         $this->stream = $stream;
     }
@@ -59,7 +62,7 @@ class WebSocket
         return $text;
     }
 
-    public function write($data, $opcode = self::OPCODE_TEXT): ?int
+    public function write($data, $opcode = self::OPCODE_TEXT | self::FINISHED): ?int
     {
         return $this->stream->write($this->encode($data, $opcode));
     }
@@ -73,7 +76,7 @@ class WebSocket
         }
 
         switch (ord($data)) {
-            case self::OPCODE_CLOSE:
+            case self::OPCODE_CLOSE | self::OPCODE_FINISHED:
                 $reason = '';
                 if (isset($data[1])) {
                     $reason = $this->unmask($data);
@@ -82,17 +85,17 @@ class WebSocket
                 throw new CloseException();
                 return null;
                 break;
-            case self::OPCODE_PING:
+            case self::OPCODE_PING | self::OPCODE_FINISHED:
                 $reason = $this->unmask($data);
                 $this->ping($reason);
                 return null;
                 break;
-            case self::OPCODE_PONG:
+            case self::OPCODE_PONG | self::OPCODE_FINISHED:
                 echo "pong\n";
                 return null;
                 break;
-            case self::OPCODE_TEXT:
-            case self::OPCODE_BINARY:
+            case self::OPCODE_TEXT | self::OPCODE_FINISHED:
+            case self::OPCODE_BINARY | self::OPCODE_FINISHED:
                 return $this->unmask($data);
             default:
                 throw new UnknownOpcodeException();
@@ -102,21 +105,21 @@ class WebSocket
 
     public function ping(string $text = '')
     {
-        return $this->write(substr($text, 0, 125), self::OPCODE_PING) > 0;
+        return $this->write(substr($text, 0, 125), self::OPCODE_PING | self::OPCODE_FINISHED) > 0;
     }
 
     public function pong(string $text = '')
     {
-        return $this->write(substr($text, 0, 125), self::OPCODE_PONG) > 0;
+        return $this->write(substr($text, 0, 125), self::OPCODE_PONG | self::OPCODE_FINISHED) > 0;
     }
 
     public function close(string $reason = ''): bool
     {
-        $this->write(substr($reason, 0, 125), self::OPCODE_CLOSE);
+        $this->write(substr($reason, 0, 125), self::OPCODE_CLOSE | self::OPCODE_FINISHED);
         return $this->stream->close();
     }
 
-    public function detach(): Stream
+    public function detach(): StreamInterface
     {
         $stream = $this->stream;
         $this->stream = null;
