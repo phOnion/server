@@ -87,13 +87,13 @@ class TcpServer implements ServerInterface
 
                 $socket = @stream_socket_server($address, $errCode, $errMessage, $options, $this->createContext(array_merge(
                     $this->configs,
-                    $config
+                    $config ?? []
                 ), ($type & self::TYPE_SECURE) === self::TYPE_SECURE));
                 stream_set_blocking($socket, 0);
 
                 if (!$socket) {
                     throw new \RuntimeException(
-                        "Unable to bind on '{$address}' - {$errMessage}",
+                        "Unable to bind on '{$address}' - {$errMessage} ({$errCode})",
                         $errCode
                     );
                 }
@@ -160,6 +160,8 @@ class TcpServer implements ServerInterface
                 stream_context_set_option($context, 'ssl', $key, $value);
             }
         }
+
+        return $context;
     }
 
     protected function trigger(string $event, ... $args)
