@@ -113,12 +113,11 @@ class TcpServer implements ServerInterface
                     stream_set_blocking($channel, 0);
                     $this->process(new Stream($channel));
                 });
-            })->otherwise(function (\Throwable $ex) {
-                echo "- Failed: {$ex->getMessage()}\n";
-            })->finally(function () {
+            })->then(function () {
                 echo " - Ready\n";
-            });
-
+            }, function (\Throwable $ex) {
+                echo "- Failed: {$ex->getMessage()}\n";
+            })->await();
         }
 
         loop()->start();
