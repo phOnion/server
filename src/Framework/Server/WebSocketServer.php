@@ -29,10 +29,10 @@ class WebSocketServer extends HttpServer
                                     $this->trigger('message', $socket, $data);
                                 }
                             } catch (CloseException $ex) {
-                                $this->trigger('close');
+                                $this->trigger('close', $ex->getCode());
                             } catch (UnknownOpcodeException $ex) {
                                 $socket->close();
-                                $this->trigger('close');
+                                $this->trigger('close', $ex->getCode());
                             }
                         });
                     })->otherwise(function (\Throwable $ex) {
