@@ -3,9 +3,9 @@ namespace Onion\Framework\Server;
 
 use function Onion\Framework\EventLoop\attach;
 use Onion\Framework\EventLoop\Stream\Stream;
-use Onion\Framework\Server\Stream\Exceptions\CloseException;
-use Onion\Framework\Server\Stream\Exceptions\UnknownOpcodeException;
-use Onion\Framework\Server\Stream\WebSocket;
+use Onion\Framework\Server\WebSocket\Exceptions\CloseException;
+use Onion\Framework\Server\WebSocket\Exceptions\UnknownOpcodeException;
+use Onion\Framework\Server\WebSocket\Stream as WebSocket;
 
 class WebSocketServer extends HttpServer
 {
