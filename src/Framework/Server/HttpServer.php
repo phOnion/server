@@ -7,6 +7,7 @@ use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\ServerRequest;
 use GuzzleHttp\Psr7\UploadedFile;
 use Onion\Framework\EventLoop\Stream\Stream;
+use Onion\Framework\Promise\Promise;
 use Onion\Framework\Promise\RejectedPromise;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -25,12 +26,22 @@ class HttpServer extends TcpServer
     protected function processRequest(ServerRequestInterface $request, Stream $stream)
     {
         try {
-            $this->trigger('request', $request)
-                ->otherwise(function (\Throwable $ex) {
-                    return new Response(500, [
-                        'Content-Type' => 'text/plain; charset=urf-8',
-                    ], $ex->getMessage());
-                })->then(function (ResponseInterface $response) use ($stream) {
+            if ($request->getHeaderLine('Content-Length') > $this->getMaxPackageSize()) {
+                $promise = new Promise(function ($resolve) use ($request) {
+                    $resolve(new Response($request->hasHeader('Expect') ? 417 : 413, [
+                        'content-type' => 'text/plain',
+                    ]));
+                });
+            } else {
+                $promise = $this->trigger('request', $request)
+                    ->otherwise(function (\Throwable $ex) {
+                        return new Response(500, [
+                            'Content-Type' => 'text/plain; charset=urf-8',
+                        ], $ex->getMessage());
+                    });
+            }
+
+            $promise->then(function (ResponseInterface $response) use ($stream) {
                     $stream->write("HTTP/1.1 {$response->getStatusCode()} {$response->getReasonPhrase()}\n");
                     foreach ($response->getHeaders() as $header => $headers) {
                         foreach ($headers as $value) {
@@ -40,7 +51,9 @@ class HttpServer extends TcpServer
 
                     if (!$response->hasHeader('content-length')) {
                         $size = $response->getBody()->getSize();
-                        $stream->write("Content-Length: {$size}\n");
+                        if ($size > 0) {
+                            $stream->write("Content-Length: {$size}\n");
+                        }
                     }
 
                     $stream->write("\n");
