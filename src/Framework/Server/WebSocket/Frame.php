@@ -12,8 +12,17 @@ class Frame
     public const OPCODE_CONTINUATION = 0x00;
     public const OPCODE_FINISHED = 0b10000000;
 
+    private const OPCODE_READABLE_MAP = [
+        -1 => 'UNKNOWN',
+        0x01 => 'TEXT (0x01)',
+        0x02 => 'BINARY (0x02)',
+        0x08 => 'CLOSE (0x08)',
+        0x09 => 'PING (0x09)',
+        0x0A => 'PONG (0x0A)',
+    ];
+
     private $data;
-    private $opcode;
+    private $opcode = -1;
     private $final;
 
     public function __construct(?string $data = null, int $opcode = self::OPCODE_TEXT, bool $final = true)
@@ -47,9 +56,7 @@ class Frame
     {
         $length = strlen($frame->getData());
 
-        if ($frame->isFinal()) {
-            $opcode = $frame->getOpcode() | Frame::OPCODE_FINISHED;
-        }
+        $opcode = $frame->getOpcode() | ($frame->isFinal() ? Frame::OPCODE_FINISHED : Frame::OPCODE_CONTINUATION);
         $mask = $masked ? 0b10000000 : 0;
 
         if ($length > 125 && $length < 65536) {
@@ -99,5 +106,14 @@ class Frame
             $opcode ^ ($finished ? Frame::OPCODE_FINISHED : 0),
             $finished
         );
+    }
+
+    public function __debugInfo()
+    {
+        return [
+            'opcode' => self::OPCODE_READABLE_MAP[$this->getOpcode()],
+            'final' => $this->isFinal() ? 'Yes' : 'No',
+            'size' => \strlen($this->getData()),
+        ];
     }
 }

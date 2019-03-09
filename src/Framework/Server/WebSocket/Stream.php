@@ -7,6 +7,10 @@ use Onion\Framework\Server\WebSocket\Exceptions\UnknownOpcodeException;
 
 class Stream
 {
+    public const CODE_NORMAL_CLOSE = 1000;
+    public const CODE_NOT_ACCEPTABLE = 1003;
+    public const CODE_GOAWAY = 1001;
+
     private $stream;
 
     public function __construct(StreamInterface $stream)
@@ -32,7 +36,7 @@ class Stream
         switch ($frame->getOpcode()) {
             case Frame::OPCODE_CLOSE:
                 $this->close($frame->getData());
-                throw new CloseException();
+                throw new CloseException("Received normal close signal", self::CODE_NORMAL_CLOSE);
                 break;
             case Frame::OPCODE_PING:
                 $this->ping($frame->getData());
@@ -43,8 +47,10 @@ class Stream
             case Frame::OPCODE_BINARY:
                 return $frame;
             default:
-            var_dump($frame->getOpcode());
-                throw new UnknownOpcodeException();
+                throw new UnknownOpcodeException(
+                    "Unknown opcode received ({$frame->getOpcode()})",
+                    self::CODE_NOT_ACCEPTABLE
+                );
                 break;
         }
     }
