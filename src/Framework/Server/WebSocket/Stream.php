@@ -11,6 +11,7 @@ class Stream
     public const CODE_GOAWAY = 1001;
     public const CODE_NOT_ACCEPTABLE = 1003;
     public const CODE_ABNORMAL_CLOSURE = 1006;
+    public const CODE_INTERNAL_ERROR = 1011;
 
     private $stream;
 
@@ -44,7 +45,6 @@ class Stream
 
         switch ($frame->getOpcode()) {
             case Frame::OPCODE_CLOSE:
-                $this->close($frame->getData());
                 throw new CloseException("Received normal close signal", self::CODE_NORMAL_CLOSE);
                 break;
             case Frame::OPCODE_PING:
@@ -93,5 +93,10 @@ class Stream
         $this->stream = null;
 
         return $stream;
+    }
+
+    public function isClosed()
+    {
+        return $this->stream === null || $this->stream->isClosed();
     }
 }
