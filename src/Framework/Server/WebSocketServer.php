@@ -17,13 +17,19 @@ class WebSocketServer extends HttpServer
             if ($request->hasHeader('upgrade') && $request->getHeaderLine('upgrade') == 'websocket') {
                 $this->trigger('handshake', $request, $stream)
                     ->then(function(WebSocket $socket) use ($request) {
-                        $this->trigger('open', $request);
+                        $resource = $socket->detach()->detach();
 
-                        attach($socket->detach()->detach(), function ($stream) {
+                        $this->trigger('open', $request, new WebSocket(
+                            new Stream($resource)
+                        ));
+
+                        attach($resource, function ($stream) {
                             $socket = new WebSocket($stream);
 
                             try {
-                                $this->trigger('message', $socket, $socket->read(65535));
+                                if(($data = $socket->read($this->getMaxPackageSize())) !== null) {
+                                    $this->trigger('message', $socket, $data);
+                                }
                             } catch (CloseException $ex) {
                                 $this->trigger('close', $ex->getCode());
                             } catch (UnknownOpcodeException $ex) {
