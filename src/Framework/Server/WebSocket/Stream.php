@@ -9,8 +9,11 @@ class Stream
 {
     public const CODE_NORMAL_CLOSE = 1000;
     public const CODE_GOAWAY = 1001;
+    public const CODE_PROTOCOL_ERROR = 1002;
     public const CODE_NOT_ACCEPTABLE = 1003;
     public const CODE_ABNORMAL_CLOSURE = 1006;
+    public const CODE_INVALID_FRAME_DATA = 1007;
+    public const CODE_MESSAGE_TOO_LONG = 1009;
     public const CODE_INTERNAL_ERROR = 1011;
 
     private $stream;
@@ -41,11 +44,21 @@ class Stream
             return null;
         }
 
-        $frame = Frame::unmask($data);
+        try {
+            $frame = Frame::unmask($data);
+        } catch (\LengthException $ex) {
+            throw new CloseException("Incomplete frame", self::CODE_INVALID_FRAME_DATA, $ex);
+        }
 
         switch ($frame->getOpcode()) {
             case Frame::OPCODE_CLOSE:
-                throw new CloseException("Received normal close signal", self::CODE_NORMAL_CLOSE);
+                $status = $frame->getData();
+                $code = self::CODE_ABNORMAL_CLOSURE;
+                if ($status !== '') {
+                    $code = current(unpack('n', $status, 0));
+                }
+
+                throw new CloseException("Received normal close signal", $code);
                 break;
             case Frame::OPCODE_PING:
                 $this->ping($frame->getData());
@@ -78,13 +91,11 @@ class Stream
         ) > 0;
     }
 
-    public function close(string $reason = ''): bool
+    public function close(int $code = self::CODE_NORMAL_CLOSE): bool
     {
-        $this->write(
-            new Frame($reason, Frame::OPCODE_CLOSE)
-        );
-
-        return $this->stream->close();
+        return $this->write(
+            new Frame(pack('n', $code), Frame::OPCODE_CLOSE)
+        ) > 0;
     }
 
     public function detach(): StreamInterface
