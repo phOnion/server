@@ -1,9 +1,7 @@
 <?php
 
 use function GuzzleHttp\Psr7\stream_for;
-use function Onion\Framework\EventLoop\after;
 use GuzzleHttp\Psr7\Response;
-use GuzzleHttp\Psr7\UploadedFile;
 use Onion\Framework\Server\WebSocket\Frame;
 use Onion\Framework\Server\WebSocket\Stream as WebSocket;
 use Onion\Framework\Server\WebSocketServer as Server;
@@ -17,7 +15,7 @@ error_reporting(E_ALL);
 
 $server = new WebSocketServer('0.0.0.0', 1337, Server::TYPE_TCP);
 // $server->addListener('0.0.0.0', 1337, Server::TYPE_TCP);
-// $server->addListener('0.0.0.0', 2346, Server::TYPE_TCP | Server::TYPE_SECURE);
+$server->addListener('0.0.0.0', 9501, Server::TYPE_TCP | Server::TYPE_SECURE);
 
 // $server->on('request', function (ServerRequestInterface $request) {
 //     throw new \Exception('Test');
