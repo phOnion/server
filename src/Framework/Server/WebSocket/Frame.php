@@ -13,7 +13,7 @@ class Frame
     public const OPCODE_FINISHED = 0b10000000;
 
     private const OPCODE_READABLE_MAP = [
-        -1 => 'UNKNOWN',
+        0 => 'UNKNOWN',
         0x01 => 'TEXT (0x01)',
         0x02 => 'BINARY (0x02)',
         0x08 => 'CLOSE (0x08)',
@@ -80,6 +80,7 @@ class Frame
     {
         $opcode = ord($packet);
         $finished = ($opcode | Frame::OPCODE_FINISHED) === $opcode;
+        $length = 0;
 
         $text = '';
         if (isset($packet[1])) {
@@ -99,6 +100,11 @@ class Frame
             for ($i = 0; $i < strlen($data); ++$i) {
                 $text .= $data[$i] ^ $masks[$i%4];
             }
+        }
+
+        $size = strlen($text);
+        if ($length > $size) {
+            throw new \LengthException("Expected length {$length} saw {$size}");
         }
 
         return new Frame(
