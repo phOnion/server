@@ -23,11 +23,7 @@ class WebSocketServer extends HttpServer
                             $socket = new WebSocket($stream);
 
                             try {
-                                $data = $socket->read();
-
-                                if ($data) {
-                                    $this->trigger('message', $socket, $data);
-                                }
+                                $this->trigger('message', $socket, $socket->read(65535));
                             } catch (CloseException $ex) {
                                 $this->trigger('close', $ex->getCode());
                             } catch (UnknownOpcodeException $ex) {
