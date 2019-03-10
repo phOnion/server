@@ -187,8 +187,8 @@ class TcpServer implements ServerInterface
             defer(function () use ($stream) {
                 $this->trigger('close', $stream)
                     ->finally(function () use ($stream) {
-                        $resource = $stream->detach();
-                        detach($resource);
+                        $stream->close();
+                        detach($stream->detach());
                     });
             });
         });
