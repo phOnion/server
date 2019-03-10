@@ -5,7 +5,6 @@ use function Onion\Framework\EventLoop\attach;
 use function Onion\Framework\EventLoop\detach;
 use Onion\Framework\EventLoop\Stream\Stream;
 use Onion\Framework\Server\WebSocket\Exceptions\CloseException;
-use Onion\Framework\Server\WebSocket\Exceptions\UnknownOpcodeException;
 use Onion\Framework\Server\WebSocket\Stream as WebSocket;
 
 class WebSocketServer extends HttpServer
