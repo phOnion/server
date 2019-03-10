@@ -15,6 +15,8 @@ use Psr\Http\Message\ServerRequestInterface;
 
 class HttpServer extends TcpServer
 {
+    private const MIN_BLOCKING_THRESHOLD = 1024 * 768;
+
     public function process(Stream $stream)
     {
         return $this->processRequest(
@@ -42,24 +44,34 @@ class HttpServer extends TcpServer
             }
 
             $promise->then(function (ResponseInterface $response) use ($stream) {
-                    $stream->write("HTTP/1.1 {$response->getStatusCode()} {$response->getReasonPhrase()}\n");
-                    foreach ($response->getHeaders() as $header => $headers) {
-                        foreach ($headers as $value) {
-                            $stream->write("{$header}: {$value}\n");
-                        }
+                $stream->write("HTTP/1.1 {$response->getStatusCode()} {$response->getReasonPhrase()}\n");
+                foreach ($response->getHeaders() as $header => $headers) {
+                    foreach ($headers as $value) {
+                        $stream->write("{$header}: {$value}\n");
                     }
+                }
+                $body = $response->getBody();
+                $size = $body->getSize();
 
-                    if (!$response->hasHeader('content-length')) {
-                        $size = $response->getBody()->getSize();
-                        if ($size > 0) {
-                            $stream->write("Content-Length: {$size}\n");
-                        }
+                if (!$response->hasHeader('content-length')) {
+
+                    if ($size > 0) {
+                        $stream->write("Content-Length: {$size}\n");
                     }
+                }
 
-                    $stream->write("\n");
-                    $stream->write("{$response->getBody()->getContents()}\n");
-                    $stream->close();
-                });
+                if ($size > self::MIN_BLOCKING_THRESHOLD) {
+                    $stream->block();
+                }
+
+
+                $body->rewind();
+                $stream->write("\n");
+                while (!$body->eof()) {
+                    $stream->write($body->read(4096));
+                }
+                $stream->close();
+            });
         } catch (\RuntimeException $ex) {
             $stream->close();
         }
@@ -91,62 +103,48 @@ class HttpServer extends TcpServer
 
     private function getMultiPartRequest(ServerRequestInterface $request, string $boundary)
     {
-        $parts = explode($boundary, (string) $request->getBody());
+        $parts = explode('--' . $boundary, (string) $request->getBody());
         $files = [];
         $parsed = [];
+
         foreach ($parts as $part) {
-            $lines = explode("\n", $part);
+            $sections = explode ("\r\n\r\n", trim($part), 2);
 
             $mediaType = 'application/octet-stream';
-            $filename = uniqid(time(), true);
+            $filename = null;
             $name = null;
 
-            foreach ($lines as $index => $line) {
-                $line = trim($line);
-                if ($line === '') {
-                    continue;
-                }
+            foreach (explode("\r\n", $sections[0]) as $header) {
+                if (preg_match('/^(?J)(?P<name>.*): (?P<value>.*)$/im', $header, $matches)) {
+                    if ($matches['name'] === 'Content-Disposition') {
+                        preg_match(
+                            '/form-data; name=\"(?P<name>[^"]+)\"(?:; filename=\"(?P<filename>[^"]+)\")?/',
+                            $matches['value'],
+                            $names
+                        );
 
-                if ($line === '--') {
-                    unset($lines[$index]);
-                    continue;
-                }
+                        if (isset($names['filename']) && $names['filename'] !== '' && $names['filename'] !== null) {
+                            $filename = $names['filename'];
+                        }
 
-                if (preg_match('/^(?P<name>.*): (?P<value>.*)$/', $line, $header)) {
-                    switch (strtolower($header['name'])) {
-                        case 'content-disposition':
-                            preg_match(
-                                '/form-data; (filename=\"(?P<filename>.*)\"|name=\"(?P<name>[^"]+)\"(?!\; filename=.*))/',
-                                $header['value'],
-                                $names
-                            );
-                            if (isset($names['filename']) && $names['filename'] !== '' && $names['filename'] !== null) {
-                                $filename = $names['filename'];
-                            } else if (isset($names['name']) && $names['name'] !== ''&& $names['name'] !== null) {
-                                $name = $names['name'];
-                            }
-                            break;
-                        case 'content-type':
-                            $mediaType = $header['value'];
-                            break;
+                        if (isset($names['name']) && $names['name'] !== ''&& $names['name'] !== null) {
+                            $name = $names['name'];
+                        }
                     }
-                    unset($lines[$index]);
+
+                    if ($matches['name'] === 'Content-Type') {
+                        $mediaType = $matches['value'];
+                    }
                 }
             }
 
-            if ($name !== null) {
-                $parsed[$name] = trim(implode("\n", $lines));
+            if ($filename === null) {
+                $parsed[$name] = $sections[1] ?? '';
             } else {
-                $file = tmpfile();
-                $size = fwrite($file, trim(implode("\n", $lines)));
+                $file = fopen(tempnam(sys_get_temp_dir(), time()), 'w+b');
+                $size = fwrite($file, $sections[1] ?? '');
 
-                if ($size === 0) {
-                    continue;
-                }
-
-                $files[] = new UploadedFile(
-                    $file, $size, 0, $filename, $mediaType
-                );
+                $files[] = new UploadedFile($file, $size, 0, $filename, $mediaType);
             }
         }
 
