@@ -8,8 +8,9 @@ use Onion\Framework\Server\WebSocket\Exceptions\UnknownOpcodeException;
 class Stream
 {
     public const CODE_NORMAL_CLOSE = 1000;
-    public const CODE_NOT_ACCEPTABLE = 1003;
     public const CODE_GOAWAY = 1001;
+    public const CODE_NOT_ACCEPTABLE = 1003;
+    public const CODE_ABNORMAL_CLOSURE = 1006;
 
     private $stream;
 
@@ -20,12 +21,20 @@ class Stream
 
     public function write(Frame $frame): ?int
     {
-        return $this->stream->write(Frame::encode($frame));
+        try {
+            return $this->stream->write(Frame::encode($frame));
+        } catch (\LogicException $ex) {
+            throw new CloseException("Stream closed", self::CODE_ABNORMAL_CLOSURE, $ex);
+        }
     }
 
     public function read(int $size = 8192): ?Frame
     {
-        $data = $this->stream->read($size);
+        try {
+            $data = $this->stream->read($size);
+        } catch (\LogicException $ex) {
+            throw new CloseException("Stream closed", self::CODE_ABNORMAL_CLOSURE, $ex);
+        }
 
         if ($data === null) {
             return null;
