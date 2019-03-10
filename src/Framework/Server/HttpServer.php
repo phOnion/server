@@ -88,22 +88,25 @@ class HttpServer extends TcpServer
             $req->getProtocolVersion()
         );
 
-
-        $pattern = '/^multipart\/form-data; boundary=(?P<boundary>.*)$/i';
-        if (preg_match($pattern, $request->getHeaderLine('content-type'), $matches)) {
-            $request = $this->getMultiPartRequest($request, $matches['boundary']);
-        } else if (preg_match('/^application\/x-www-form-urlencoded/', $request->getHeaderLine('content-type'), $matches)) {
-            $request = $request->withParsedBody(parse_query($req->getBody()));
-        } else if (preg_match('/^application\/json/', $request->getHeaderLine('content-type'))) {
-            $request = $request->withParsedBody(json_decode((string) $req->getBody(), true));
+        $bodyLength = (int) $req->getHeaderLine('content-length');
+        if ($bodyLength > 0) {
+            $body = (string) $req->getBody();
+            $pattern = '/^multipart\/form-data; boundary=(?P<boundary>.*)$/i';
+            if (preg_match($pattern, $request->getHeaderLine('content-type'), $matches)) {
+                $request = $this->getMultiPartRequest($request, $body, $matches['boundary']);
+            } else if (preg_match('/^application\/x-www-form-urlencoded/', $request->getHeaderLine('content-type'), $matches)) {
+                $request = $request->withParsedBody(parse_query($body));
+            } else if (preg_match('/^application\/json/', $request->getHeaderLine('content-type'))) {
+                $request = $request->withParsedBody(json_decode($body, true));
+            }
         }
 
         return $request;
     }
 
-    private function getMultiPartRequest(ServerRequestInterface $request, string $boundary)
+    private function getMultiPartRequest(ServerRequestInterface $request, string $body, string $boundary)
     {
-        $parts = explode('--' . $boundary, (string) $request->getBody());
+        $parts = explode('--' . $boundary, $body);
         $files = [];
         $parsed = [];
 
