@@ -108,11 +108,12 @@ class TcpServer implements ServerInterface
 
                     $sock = $stream->detach();
                     $channel = @stream_socket_accept($sock);
+                    stream_set_read_buffer($channel, $this->getMaxPackageSize() + 4096);
+                    stream_set_write_buffer($channel, $this->getMaxPackageSize() + 4096);
 
                     if ($secure) {
                         stream_set_blocking($channel, 1);
                         if (!@stream_socket_enable_crypto($channel, true, STREAM_CRYPTO_METHOD_TLS_SERVER)) {
-                            detach($channel);
                             @fclose($channel);
                             return;
                         }
