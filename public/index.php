@@ -1,7 +1,11 @@
 <?php
 
+use function GuzzleHttp\Psr7\stream_for;
+use function Onion\Framework\EventLoop\after;
 use GuzzleHttp\Psr7\Response;
-use Onion\Framework\Server\Stream\WebSocket;
+use GuzzleHttp\Psr7\UploadedFile;
+use Onion\Framework\Server\WebSocket\Frame;
+use Onion\Framework\Server\WebSocket\Stream as WebSocket;
 use Onion\Framework\Server\WebSocketServer as Server;
 use Onion\Framework\Server\WebSocketServer;
 use Psr\Http\Message\ServerRequestInterface;
@@ -13,7 +17,7 @@ error_reporting(E_ALL);
 
 $server = new WebSocketServer('0.0.0.0', 1337, Server::TYPE_TCP);
 // $server->addListener('0.0.0.0', 1337, Server::TYPE_TCP);
-// $server->addListener('0.0.0.0', 2346, Server::TYPE_TCP);
+// $server->addListener('0.0.0.0', 2346, Server::TYPE_TCP | Server::TYPE_SECURE);
 
 // $server->on('request', function (ServerRequestInterface $request) {
 //     throw new \Exception('Test');
@@ -50,14 +54,17 @@ $server->on('handshake', function (ServerRequestInterface $request, $stream) {
     }
     $stream->write("Sec-WebSocket-Version: 13\n\n");
 
-    return new WebSocket($stream->detach());
+    return new WebSocket($stream);
 });
 
 $server->on('message', function (WebSocket $stream, $data) {
-    $stream->write($data, WebSocket::OPCODE_BINARY);
+    echo "Message\n";
+    $stream->write(
+        new Frame($data, Frame::OPCODE_BINARY, true)
+    );
 });
 $server->on('close', function () {
-    echo "close";
+    echo "Close\n";
 });
 $server->set([
     'ssl_cert_file' => __DIR__ . '/../localhost.cert',
@@ -67,9 +74,22 @@ $server->set([
 ]);
 
 $server->on('request', function (ServerRequestInterface $request) {
+    $files = $request->getUploadedFiles();
+    if (count($files) > 0) {
+        return new Response(200, [
+            'content-type' => ['application/octet-stream'],
+            'content-disposition' => [
+                'attachment; filename="test.jpeg"',
+            ],
+            'content-length' => [
+                $files[0]->getSize()
+            ]
+        ], $files[0]->getStream());
+    }
+
     return new Response(200, [
-        'content-type' => ['text/html']
-    ], fopen(__DIR__ . '/socket.html', 'r+'));
+        'content-type' => ['text/html'],
+    ], stream_for(fopen(__DIR__ . '/socket.html', 'r')));
 });
 
 $server->start();

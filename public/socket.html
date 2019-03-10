@@ -3,7 +3,7 @@
 <title>WebSocket Test</title>
 <script language="javascript" type="text/javascript">
 
-var wsUri = "ws://localhost:1337/";
+var wsUri = "wss://localhost:2346/";
 var output;
 
 function init()
@@ -46,7 +46,7 @@ function onMessage(evt)
     }
     reader.readAsText(blob)
 
-  websocket.close();
+  // websocket.close();
 }
 
 function onError(evt)
@@ -76,7 +76,7 @@ window.addEventListener("load", init, false);
 <html>
    <body>
 
-      <form action = "" method = "POST" enctype = "application/x-www-form-urlencoded">
+      <form action = "" method = "POST" enctype = "multipart/form-data">
          <input type = "text" name = "test" />
          <input type = "file" name = "image" />
          <input type = "submit"/>
