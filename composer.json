@@ -2,8 +2,11 @@
     "name": "onion/server",
     "autoload": {
         "psr-4": {
-            "Onion\\": "src/"
-        }
+            "Onion\\Framework\\": "src/"
+        },
+        "files": [
+            "src/functions.php"
+        ]
     },
     "require": {
         "onion/framework": "^2.0",
