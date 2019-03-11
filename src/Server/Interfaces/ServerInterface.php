@@ -10,6 +10,6 @@ interface ServerInterface
 
     public function start();
     public function addListener(string $address, int $port, int $type, array $options = []);
-    public function on(string $event, \Closure $callback);
+    public function on(string $event, callable $callback);
     public function set(array $configuration);
 }
