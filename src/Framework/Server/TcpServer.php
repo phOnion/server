@@ -2,7 +2,6 @@
 namespace Onion\Framework\Server;
 
 use function Onion\Framework\EventLoop\attach;
-use function Onion\Framework\EventLoop\defer;
 use function Onion\Framework\EventLoop\detach;
 use function Onion\Framework\EventLoop\loop;
 use function Onion\Framework\Promise\async;
@@ -182,14 +181,14 @@ class TcpServer implements ServerInterface
         $this->trigger('connect', $channel);
         stream_set_blocking($channel, 0);
         attach($channel, function (Stream $stream) {
-            $this->trigger('receive', $stream);
-            defer(function () use ($stream) {
-                $this->trigger('close', $stream)
-                    ->finally(function () use ($stream) {
-                        $stream->close();
-                        detach($stream->detach());
-                    });
-            });
+            if ($stream->isClosed()) {
+                $stream->close();
+                detach($stream->detach());
+                $this->trigger('close');
+                return;
+            }
+
+            $this->trigger('receive', $stream, $stream->read($this->getMaxPackageSize()));
         });
     }
 }
