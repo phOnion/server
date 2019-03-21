@@ -1,11 +1,19 @@
 <?php
 namespace Onion\Framework\Server;
 
+use function Onion\Framework\EventLoop\attach;
+use function Onion\Framework\EventLoop\loop;
+use function Onion\Framework\Promise\async;
+use Onion\Framework\EventLoop\Stream\Interfaces\StreamInterface;
+use Onion\Framework\EventLoop\Stream\Stream as TcpStream;
 use Onion\Framework\Promise\Interfaces\PromiseInterface;
 use Onion\Framework\Promise\Promise;
-use function Onion\Framework\Promise\async;
+use Onion\Framework\Promise\RejectedPromise;
+use Onion\Framework\Server\Interfaces\ServerInterface;
+use Onion\Framework\Server\Udp\Stream as UdpStream;
+use function Onion\Framework\EventLoop\detach;
 
-trait ServerTrait
+class Server implements ServerInterface
 {
     private $listeners = [];
     private $handlers = [];
@@ -70,7 +78,6 @@ trait ServerTrait
                     $this->configuration,
                     $options ?? []
                 ), ($type & self::TYPE_SECURE) === self::TYPE_SECURE));
-                stream_set_blocking($socket, 0);
 
                 if (!$socket) {
                     throw new \RuntimeException(
@@ -78,6 +85,7 @@ trait ServerTrait
                         $errCode
                     );
                 }
+                stream_set_blocking($socket, false);
 
                 return $socket;
             })->otherwise(function (\Throwable $ex) {
@@ -87,7 +95,26 @@ trait ServerTrait
             });
         }
 
-        return Promise::all($promises);
+        return Promise::all($promises)
+            ->then(function ($sockets) {
+                $this->handleTcp(array_filter($sockets, function ($stream) {
+                    return stream_get_meta_data($stream)['stream_type'] !== 'udp_socket';
+                }));
+
+                return $sockets;
+            })->then(function ($sockets) {
+                $this->handleUdp(array_filter($sockets, function ($stream) {
+                    return stream_get_meta_data($stream)['stream_type'] === 'udp_socket';
+                }));
+
+                return $sockets;
+            })->then(function ($sockets) {
+                foreach ($sockets as $socket) {
+                    echo "Server " . stream_socket_get_name($socket, false) . " - Ready\n";
+                }
+
+                $this->trigger('start');
+            });
     }
 
     protected function trigger(string $event, ... $args)
@@ -135,6 +162,65 @@ trait ServerTrait
         }
 
         return $context;
+    }
+
+
+    public function handleTcp(array $sockets)
+    {
+        foreach ($sockets as $socket) {
+            attach($socket, function (StreamInterface $stream) {
+                $socket = $stream->detach();
+
+                if (stream_context_get_options($socket)['ssl'] ?? false) {
+                    stream_set_blocking($socket, true);
+                    if (!@stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_SERVER)) {
+                        @fclose($socket);
+                        return;
+                    }
+                    stream_set_blocking($socket, false);
+                }
+
+                $channel = @stream_socket_accept($socket);
+                @stream_set_read_buffer($channel, $this->getMaxPackageSize() + 8192);
+                stream_set_blocking($channel, false);
+
+                $this->trigger('connect', $channel);
+
+                attach($channel, function (StreamInterface $stream) {
+                    if ($stream->isClosed()) {
+                        $stream->close();
+                        detach($stream->detach());
+                        $this->trigger('close');
+                        return;
+                    }
+
+                    $this->trigger('receive', $stream, $stream->read($this->getMaxPackageSize()));
+                });
+            });
+        }
+    }
+
+    public function handleUdp(array $sockets)
+    {
+        foreach ($sockets as $socket) {
+            stream_set_blocking($socket, false);
+            attach($socket, function (TcpStream $stream) {
+                $stream = new UdpStream($stream->detach());
+
+                if (!($data = $stream->peek(8192, false, $address))) {
+                    return;
+                }
+
+                $this->trigger('packet', $stream, $data, $address);
+            });
+        }
+    }
+
+    public function start()
+    {
+        $this->init();
+
+        loop()->start();
     }
 
 }
