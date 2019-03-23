@@ -2,16 +2,17 @@
 namespace Onion\Framework\Server;
 
 use function Onion\Framework\EventLoop\attach;
+use function Onion\Framework\EventLoop\defer;
+use function Onion\Framework\EventLoop\detach;
 use function Onion\Framework\EventLoop\loop;
 use function Onion\Framework\Promise\async;
-use Onion\Framework\EventLoop\Stream\Interfaces\StreamInterface;
-use Onion\Framework\EventLoop\Stream\Stream as TcpStream;
+use GuzzleHttp\Stream\Stream;
+use GuzzleHttp\Stream\StreamInterface;
 use Onion\Framework\Promise\Interfaces\PromiseInterface;
 use Onion\Framework\Promise\Promise;
 use Onion\Framework\Promise\RejectedPromise;
 use Onion\Framework\Server\Interfaces\ServerInterface;
 use Onion\Framework\Server\Udp\Stream as UdpStream;
-use function Onion\Framework\EventLoop\detach;
 
 class Server implements ServerInterface
 {
@@ -166,6 +167,7 @@ class Server implements ServerInterface
     {
         attach($socket, function (StreamInterface $stream) {
             $socket = $stream->detach();
+            $stream->attach($socket);
             stream_set_blocking($socket, false);
 
             if (stream_context_get_options($socket)['ssl'] ?? false) {
@@ -180,18 +182,16 @@ class Server implements ServerInterface
             @stream_set_read_buffer($channel, $this->getMaxPackageSize() + 8192);
             stream_set_blocking($channel, false);
 
-            $this->trigger('connect', new TcpStream($channel));
+            $this->trigger('connect', $stream);
 
             attach($channel, function (StreamInterface $stream) {
-                if ($stream->isClosed()) {
-                    $stream->close();
-                    detach($stream->detach());
-                    echo "Closing\n";
+                if ($stream->eof()) {
+                    detach($stream);
                     $this->trigger('close');
                     return;
                 }
 
-                $this->trigger('receive', $stream, $stream->read($this->getMaxPackageSize()));
+                $this->trigger('receive', $stream, $stream->getContents());
             });
         });
     }
@@ -199,8 +199,8 @@ class Server implements ServerInterface
     public function handleUdp($socket)
     {
         stream_set_blocking($socket, false);
-        attach($socket, function (TcpStream $stream) {
-            $stream = new UdpStream($stream->detach());
+        attach($socket, function (StreamInterface $stream) {
+            $stream = new UdpStream($stream->getStream());
 
             if (!($data = $stream->peek(8192, false, $address))) {
                 return;
