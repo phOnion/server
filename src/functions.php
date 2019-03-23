@@ -1,17 +1,17 @@
 <?php
 namespace Onion\Framework\Server;
 
+use function GuzzleHttp\Psr7\parse_query;
 use function GuzzleHttp\Psr7\parse_request;
 use GuzzleHttp\Psr7\ServerRequest;
 use GuzzleHttp\Psr7\UploadedFile;
-use Onion\Framework\EventLoop\Stream\Interfaces\StreamInterface;
+use GuzzleHttp\Stream\StreamInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use function GuzzleHttp\Psr7\parse_query;
 
 if (!function_exists(__NAMESPACE__ . '\build_request')) {
-    function build_request(StreamInterface $stream, int $maxBodySize): ServerRequestInterface {
-        $req = parse_request($stream->read($maxBodySize));
+    function build_request($message): ServerRequestInterface {
+        $req = parse_request($message);
         $request = new ServerRequest(
             $req->getMethod(),
             $req->getUri(),
