@@ -2,17 +2,15 @@
 namespace Onion\Framework\Server;
 
 use function Onion\Framework\EventLoop\attach;
-use function Onion\Framework\EventLoop\defer;
 use function Onion\Framework\EventLoop\detach;
 use function Onion\Framework\EventLoop\loop;
 use function Onion\Framework\Promise\async;
-use GuzzleHttp\Stream\Stream;
 use GuzzleHttp\Stream\StreamInterface;
 use Onion\Framework\Promise\Interfaces\PromiseInterface;
 use Onion\Framework\Promise\Promise;
 use Onion\Framework\Promise\RejectedPromise;
 use Onion\Framework\Server\Interfaces\ServerInterface;
-use Onion\Framework\Server\Udp\Stream as UdpStream;
+use Onion\Framework\Server\Udp\Packet;
 
 class Server implements ServerInterface
 {
@@ -21,7 +19,7 @@ class Server implements ServerInterface
 
     private $configuration = [];
 
-    public function addListener(string $interface, ?int $port = 0, int $type = 0, array $options = [])
+    public function addListener(string $interface, ?int $port = 0, int $type = 0, array $options = []): void
     {
         $this->listeners[] = [
             'interface' => $interface,
@@ -31,12 +29,12 @@ class Server implements ServerInterface
         ];
     }
 
-    public function on(string $event, callable $callback)
+    public function on(string $event, callable $callback): void
     {
         $this->handlers[strtolower($event)] = $callback;
     }
 
-    public function set(array $configuration)
+    public function set(array $configuration): void
     {
         $this->configuration = $configuration;
     }
@@ -115,8 +113,9 @@ class Server implements ServerInterface
             });
     }
 
-    protected function trigger(string $event, ... $args)
+    protected function trigger(string $event, ... $args): PromiseInterface
     {
+        $event = strtolower($event);
         return async(function () use ($event, $args) {
             if (!isset($this->handlers[$event])) {
                 return new RejectedPromise(
@@ -180,6 +179,7 @@ class Server implements ServerInterface
 
             $channel = @stream_socket_accept($socket);
             @stream_set_read_buffer($channel, $this->getMaxPackageSize() + 8192);
+            @stream_set_write_buffer($channel, $this->getMaxPackageSize() + 8192);
             stream_set_blocking($channel, false);
 
             $this->trigger('connect', $stream);
@@ -191,7 +191,7 @@ class Server implements ServerInterface
                     return;
                 }
 
-                $this->trigger('receive', $stream, $stream->getContents());
+                $this->trigger('receive', $stream);
             });
         });
     }
@@ -200,17 +200,17 @@ class Server implements ServerInterface
     {
         stream_set_blocking($socket, false);
         attach($socket, function (StreamInterface $stream) {
-            $stream = new UdpStream($stream->getStream());
+            $packet = new Packet($stream);
 
-            if (!($data = $stream->peek(8192, false, $address))) {
+            if (!$packet->read(4, $address, STREAM_PEEK) && !$packet->read(4, $address, STREAM_PEEK | STREAM_OOB)) {
                 return;
             }
 
-            $this->trigger('packet', $stream, $data, $address);
+            $this->trigger('packet', $packet, $address);
         });
     }
 
-    public function start()
+    public function start(): void
     {
         $this->init();
 
