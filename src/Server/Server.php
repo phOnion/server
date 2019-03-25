@@ -135,11 +135,11 @@ class Server implements ServerInterface
             stream_context_set_option($context, 'socket', 'backlog', $configs['backlog']);
         }
 
-        if (isset($this->configs['tcp_nodelay'])) {
+        if (isset($configs['tcp_nodelay'])) {
             stream_context_set_option($context, 'socket', 'tcp_nodelay', $configs['tcp_nodelay']);
         }
 
-        if (isset($this->configs['so_reuseport'])) {
+        if (isset($configs['so_reuseport'])) {
             stream_context_set_option($context, 'socket', 'so_reuseport', $configs['so_reuseport']);
         }
 
@@ -150,7 +150,7 @@ class Server implements ServerInterface
                 'verify_peer' => $configs['ssl_verify_peer'] ?? null,
                 'allow_self_signed' => $configs['ssl_allow_self_signed'] ?? null,
                 'verify_depth' => $configs['ssl_verify_depth'] ?? null,
-                'cafile' => $this->configs['ssl_client_cert_file'] ?? null,
+                'cafile' => $configs['ssl_client_cert_file'] ?? null,
                 'passphrase' => $configs['ssl_cert_passphrase'] ?? null,
             ];
 
