@@ -1,9 +1,9 @@
 <?php
 
 use GuzzleHttp\Psr7\Response;
-use Onion\Framework\EventLoop\Stream\Interfaces\StreamInterface as TcpStream;
+use GuzzleHttp\Stream\StreamInterface as TcpStream;
 use Onion\Framework\Server\Server as Server;
-use Onion\Framework\Server\Udp\Interfaces\StreamInterface as UdpStream;
+use Onion\Framework\Server\Udp\Packet;
 use Psr\Http\Message\ServerRequestInterface;
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -13,65 +13,49 @@ error_reporting(E_ALL);
 
 $server = new Server();
 $server->addListener('0.0.0.0', 1337, Server::TYPE_TCP);
-$server->addListener('0.0.0.0', 1338, Server::TYPE_TCP);
+$server->addListener('0.0.0.0', 1338, Server::TYPE_TCP | Server::TYPE_SECURE, [
+    'ssl_cert_file' => __DIR__ . '/../localhost.cert',
+    'ssl_key_file' => __DIR__ . '/../localhost.key',
+    'ssl_allow_self_signed' => true,
+    'ssl_verify_peer' => false,
+]);
 $server->addListener('0.0.0.0', 1339, Server::TYPE_UDP);
 
 $server->on('start', function () {
-    echo "Start\n";
+    echo "\nStart\n\r\n\r";
 });
-// $server->set([
-//     'ssl_cert_file' => __DIR__ . '/../localhost.cert',
-//     'ssl_key_file' => __DIR__ . '/../localhost.key',
-//     'ssl_allow_self_signed' => true,
-//     'ssl_verify_peer' => false,
-// ]);
 
 // $server->on('request', function (ServerRequestInterface $request) {
-//     $files = $request->getUploadedFiles();
-//     if (count($files) > 0) {
-//         return new Response(200, [
-//             'content-type' => ['application/octet-stream'],
-//             'content-disposition' => [
-//                 'attachment; filename="test.jpeg"',
-//             ],
-//             'content-length' => [
-//                 $files[0]->getSize()
-//             ]
-//         ], $files[0]->getStream());
-//     }
-
 //     return new Response(200, [
 //         'content-type' => ['text/html'],
 //     ], 'Hello, World!');
 // });
 
-$server->on('receive', function (TcpStream $stream, $data) {
-    echo "Receive\n";
+$server->on('receive', function (TcpStream $stream) {
+    $resource = $stream->detach();
+    $stream->attach($resource);
 
-    $buffer = '';
-    while ($stream->isClosed()) {
-        $data = $stream->read();
-        $buffer .= $data;
-        $stream->write($buffer);
-        if (strlen($buffer) !== 0 && strlen($data) === 0) {
-            break;
-        }
-    }
-
-    $stream->write($buffer . "Response");
+    $buffer = $stream->getContents();
+    echo "< {$buffer}\n\r";
+    $stream->write($buffer);
 });
 
 $server->on('connect', function () {
-    echo "Connected\n";
+    // after(1000, function () {
+    //     var_dump('n');
+    //     echo "Timer tick\n\r\n\r";
+    // });
+    echo "\nConnected\n\r\n\r";
 });
 
 $server->on('close', function () {
-    echo "Closed\n";
+    echo "\nClosed\n\r\n\r";
 });
 
-$server->on('packet', function (UdpStream $stream, $data, $address) {
-    echo "Packet\n";
-    $stream->write($stream->read(), $address);
+$server->on('packet', function (Packet $packet, $address) {
+    $data = $packet->read(1024, $address);
+    echo "< {$data}\n\r\n\r";
+    $packet->send($data, $address);
 });
 
 $server->start();

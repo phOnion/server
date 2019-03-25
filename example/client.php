@@ -2,17 +2,15 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use function Onion\Framework\EventLoop\select;
-use Onion\Framework\EventLoop\Stream\Stream as TcpStream;
-use Onion\Framework\Server\Udp\Stream;
+use GuzzleHttp\Stream\Stream;
+use Onion\Framework\Server\Udp\Packet;
 
-$sock = stream_socket_client('udp://localhost:1339', $error, $message, 5);
+
+$sock = stream_socket_client('udp://127.0.0.1:1339', $error, $message, 30);
 if (!$sock) {
     throw new \RuntimeException("{$message} ({$error})");
 }
-
-$datagram = new Stream($sock);
-$address = stream_socket_get_name($sock, true);
-$datagram->write('test', $address);
+stream_set_blocking($sock, false);
 
 $read = [$sock];
 $write = [$sock];
@@ -20,31 +18,38 @@ $oob = [$sock];
 
 echo "\tUDP\n";
 if (select($read, $write, $obb, null)) {
-    $d = new Stream($sock);
-    if ($d->peek(1, false)) {
-        echo "{$address}: " . $d->read(1500, !empty($obb), $address) . PHP_EOL;
+    $stream = new Stream($sock);
+    $address = stream_socket_get_name($sock, true);
+    $d = new Packet($stream);
+    for ($i=0; $i<3; $i++) {
+        $d->send("#{$i}: " . time());
+        echo "> {$d->read(128)}\n";
+        sleep(1);
     }
 }
+unset($stream);
 
 echo "\tTCP\n";
 
-$sock = stream_socket_client('tcp://localhost:1338', $error, $message, 5);
+$sock = stream_socket_client('tcp://localhost:1337', $error, $message, 30);
 if (!$sock) {
     throw new \RuntimeException("{$message} ({$error})");
 }
 
 
-$stream = new TcpStream($sock);
-
+$stream = new Stream($sock);
 
 $read = [$sock];
 $write = [$sock];
 $oob = [$sock];
 
 if (select($read, $write, $obb, null)) {
-    $d = new TcpStream($sock);
-    $d->write("test");
-    echo "{$d->read()}\n";
+    $d = new Stream($sock);
+    for ($i=0; $i<3; $i++) {
+        $d->write("#{$i}: " . time());
+        echo "> {$d->read(128)}\n";
+        sleep(1);
+    }
 }
 
 
