@@ -50,18 +50,14 @@ class HttpServer extends Server implements ServerInterface
             return parent::trigger($event, ...$args);
         }
 
-        return new RejectedPromise(new \LogicException("Not allowed to trigger unsupported events ({$event})"));
+        return new RejectedPromise(new \LogicException("Not allowed to trigger event ({$event})"));
     }
 
     public function on(string $event, callable $callback): void
     {
-        if (strtolower($event) === 'receive' || strtolower($event) === 'connect') {
-            throw new \RuntimeException(
-                "Binding on 'receive' is not allowed for HTTP server"
-            );
+        if (strtolower($event) !== 'receive' && strtolower($event) !== 'connect') {
+            parent::on($event, $callback);
         }
-
-        parent::on($event, $callback);
     }
 
     public function addListener(string $address, ?int $port = 0, int $type = 0, array $options = []): void
