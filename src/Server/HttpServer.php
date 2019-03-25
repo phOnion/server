@@ -35,6 +35,8 @@ class HttpServer extends Server implements ServerInterface
 
                 $promise->then(function (ResponseInterface $response) use ($stream) {
                     send_response($response, $stream);
+                })->finally(function () use ($stream) {
+                    $stream->close();
                 });
             } catch (\RuntimeException $ex) {
                 $stream->close();

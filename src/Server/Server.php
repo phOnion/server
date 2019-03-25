@@ -7,6 +7,7 @@ use function Onion\Framework\EventLoop\loop;
 use function Onion\Framework\Promise\async;
 use GuzzleHttp\Stream\StreamInterface;
 use Onion\Framework\Promise\Interfaces\PromiseInterface;
+use Onion\Framework\Promise\Interfaces\ThenableInterface;
 use Onion\Framework\Promise\Promise;
 use Onion\Framework\Promise\RejectedPromise;
 use Onion\Framework\Server\Interfaces\ServerInterface;
@@ -44,7 +45,7 @@ class Server implements ServerInterface
         return $this->configs['package_max_length'] ?? 2097152; // Default 2MBs
     }
 
-    protected function init(): PromiseInterface
+    protected function init(): ThenableInterface
     {
         $promises = [];
         foreach ($this->listeners as $listener) {
@@ -131,11 +132,15 @@ class Server implements ServerInterface
     {
         $context = stream_context_create();
         if (isset($configs['backlog'])) {
-            stream_context_set_option($context, 'tcp', 'backlog', $configs['backlog']);
+            stream_context_set_option($context, 'socket', 'backlog', $configs['backlog']);
         }
 
         if (isset($this->configs['tcp_nodelay'])) {
-            stream_context_set_option($context, 'tcp', 'tcp_nodelay', $configs['tcp_nodelay']);
+            stream_context_set_option($context, 'socket', 'tcp_nodelay', $configs['tcp_nodelay']);
+        }
+
+        if (isset($this->configs['so_reuseport'])) {
+            stream_context_set_option($context, 'socket', 'so_reuseport', $configs['so_reuseport']);
         }
 
         if ($secure) {
@@ -200,9 +205,17 @@ class Server implements ServerInterface
     {
         stream_set_blocking($socket, false);
         attach($socket, function (StreamInterface $stream) {
+            if ($stream->eof()) {
+                detach($stream);
+                return;
+            }
+
             $packet = new Packet($stream);
 
-            if (!$packet->read(4, $address, STREAM_PEEK) && !$packet->read(4, $address, STREAM_PEEK | STREAM_OOB)) {
+            if (
+                !$packet->read(1024, $address, STREAM_PEEK) &&
+                !$packet->read(1024, $address, STREAM_PEEK | STREAM_OOB)
+            ) {
                 return;
             }
 
