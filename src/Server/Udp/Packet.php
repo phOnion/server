@@ -19,8 +19,13 @@ class Packet
         return stream_socket_recvfrom($this->resource, $size, $flags, $address);
     }
 
-    public function send(string $data, ?string $address = null, bool $oob = false): int
+    public function send(string $data, string $address, bool $oob = false): int
     {
-        return stream_socket_sendto($this->resource, $data, ($oob ? STREAM_OOB : 0), $address);
+        return stream_socket_sendto($this->resource, $data, ($oob ? STREAM_OOB : null), $address);
+    }
+
+    public function getAddress(bool $peer = false)
+    {
+        return stream_socket_get_name($this->resource, $peer);
     }
 }
