@@ -219,7 +219,7 @@ class Server implements ServerInterface
                 return;
             }
 
-            $this->trigger('packet', $packet, $address);
+            $this->trigger('packet', $packet);
         });
     }
 
