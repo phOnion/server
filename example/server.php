@@ -5,6 +5,7 @@ use GuzzleHttp\Stream\StreamInterface as TcpStream;
 use Onion\Framework\Server\Server as Server;
 use Onion\Framework\Server\Udp\Packet;
 use Psr\Http\Message\ServerRequestInterface;
+use function Onion\Framework\EventLoop\after;
 require __DIR__ . '/../vendor/autoload.php';
 
 ini_set('display_errors', 1);
@@ -22,7 +23,7 @@ $server->addListener('0.0.0.0', 1338, Server::TYPE_TCP | Server::TYPE_SECURE, [
 $server->addListener('0.0.0.0', 1339, Server::TYPE_UDP);
 
 $server->on('start', function () {
-    echo "\nStart\n\r\n\r";
+    echo "\nStart\n\r";
 });
 
 // $server->on('request', function (ServerRequestInterface $request) {
@@ -41,20 +42,20 @@ $server->on('receive', function (TcpStream $stream) {
 });
 
 $server->on('connect', function () {
-    // after(1000, function () {
-    //     var_dump('n');
-    //     echo "Timer tick\n\r\n\r";
-    // });
-    echo "\nConnected\n\r\n\r";
+    after(1000, function () {
+        echo "Timer tick\n\r";
+    });
+
+    echo "\nConnected\n\r";
 });
 
 $server->on('close', function () {
-    echo "\nClosed\n\r\n\r";
+    echo "\nClosed\n\r";
 });
 
-$server->on('packet', function (Packet $packet, $address) {
+$server->on('packet', function (Packet $packet) {
     $data = $packet->read(1024, $address);
-    echo "< {$data}\n\r\n\r";
+    echo "< {$data}\n\r";
     $packet->send($data, $address);
 });
 

@@ -22,9 +22,9 @@ if (select($read, $write, $obb, null)) {
     $address = stream_socket_get_name($sock, true);
     $d = new Packet($stream);
     for ($i=0; $i<3; $i++) {
-        $d->send("#{$i}: " . time());
-        echo "> {$d->read(128)}\n";
+        $d->send("#{$i}: " . time(), $d->getAddress(true));
         sleep(1);
+        echo "> {$d->read(128)}\n";
     }
 }
 unset($stream);
@@ -47,7 +47,7 @@ if (select($read, $write, $obb, null)) {
     $d = new Stream($sock);
     for ($i=0; $i<3; $i++) {
         $d->write("#{$i}: " . time());
-        echo "> {$d->read(128)}\n";
+        echo "> {$d->read(256)}\n";
         sleep(1);
     }
 }
