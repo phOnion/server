@@ -29,7 +29,7 @@ class HttpServer extends Server implements ServerInterface
                         ->otherwise(function (\Throwable $ex) {
                             return new Response(500, [
                                 'Content-Type' => 'text/plain; charset=urf-8',
-                            ], $ex->getMessage());
+                            ]);
                         });
                 }
 
