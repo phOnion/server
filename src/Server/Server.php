@@ -42,7 +42,7 @@ class Server implements ServerInterface
 
     public function getMaxPackageSize(): int
     {
-        return $this->configs['package_max_length'] ?? 2097152; // Default 2MBs
+        return $this->configuration['package_max_length'] ?? 2097152; // Default 2MBs
     }
 
     protected function init(): ThenableInterface
