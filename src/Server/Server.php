@@ -196,7 +196,7 @@ class Server implements ServerInterface
                     return;
                 }
 
-                $this->trigger('receive', $stream);
+                $this->trigger('receive', new Connection($stream));
             });
         });
     }
@@ -210,15 +210,7 @@ class Server implements ServerInterface
                 return;
             }
 
-            $packet = new Packet($stream);
-
-            if (
-                !$packet->read(1024, $address, STREAM_PEEK) &&
-                !$packet->read(1024, $address, STREAM_PEEK | STREAM_OOB)
-            ) {
-                return;
-            }
-
+            $packet = new Connection($stream);
             $this->trigger('packet', $packet);
         });
     }
