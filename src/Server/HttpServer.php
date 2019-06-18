@@ -2,12 +2,13 @@
 namespace Onion\Framework\Server;
 
 use GuzzleHttp\Psr7\Response;
-use GuzzleHttp\Stream\StreamInterface;
 use Onion\Framework\Promise\Interfaces\PromiseInterface;
 use Onion\Framework\Promise\Promise;
 use Onion\Framework\Promise\RejectedPromise;
+use Onion\Framework\Server\Connection;
 use Onion\Framework\Server\Interfaces\ServerInterface;
 use Psr\Http\Message\ResponseInterface;
+use function GuzzleHttp\Psr7\str;
 
 class HttpServer extends Server implements ServerInterface
 {
@@ -15,9 +16,9 @@ class HttpServer extends Server implements ServerInterface
     {
         parent::on('connect', function () {});
         parent::on('close', function () {});
-        parent::on('receive', function (StreamInterface $stream) {
+        parent::on('receive', function (Connection $connection) {
             try {
-                $request = build_request($stream->getContents());
+                $request = build_request($connection->getContents());
                 if ($request->getHeaderLine('Content-Length') > parent::getMaxPackageSize()) {
                     $promise = new Promise(function ($resolve) use ($request) {
                         $resolve(new Response($request->hasHeader('Expect') ? 417 : 413, [
@@ -33,13 +34,16 @@ class HttpServer extends Server implements ServerInterface
                         });
                 }
 
-                $promise->then(function (ResponseInterface $response) use ($stream) {
-                    send_response($response, $stream);
-                })->finally(function () use ($stream) {
-                    $stream->close();
+                $promise->then(function (ResponseInterface $response) use ($connection) {
+                    $connection->send(str($response->withHeader('Content-Length', $response->getBody()->getSize())));
+                })->finally(function () use ($request, $connection) {
+                    if (!$request->hasHeader('connection') && stripos($request->getHeader('connection'), 'keep-alive') === false) {
+                        $connection->close();
+                    }
                 });
             } catch (\RuntimeException $ex) {
-                $stream->close();
+                echo "ERROR: {$ex->getMessage()}\n";
+                $connection->close();
             }
         });
     }
