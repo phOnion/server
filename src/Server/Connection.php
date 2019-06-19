@@ -16,12 +16,11 @@ class Connection
     public function __construct(StreamInterface $stream)
     {
         $resource = $stream->detach();
+        $stream->attach($resource);
         $this->address = stream_socket_get_name($resource, true);
         $this->resource = $resource;
 
-        $this->crypto = stream_get_meta_data($resource)['crypto'] ?? [];
-
-        $stream->attach($resource);
+        $this->crypto = $stream->getMetadata('crypto');
         $this->buffer = new BufferStream();
 
         attach($stream, null, function (StreamInterface $stream) {
@@ -76,6 +75,11 @@ class Connection
         return fclose($this->resource);
     }
 
+    public function getId(): int
+    {
+        return (int) $this->resource;
+    }
+
     public function isAvailable(): bool
     {
         return !feof($this->resource);
@@ -84,5 +88,15 @@ class Connection
     public function getAddress(): string
     {
         return $this->address;
+    }
+
+    public function isEncrypted(): bool
+    {
+        return $this->crypto !== null;
+    }
+
+    public function getCryptoOption(string $name = null)
+    {
+        return ($this->crypto[$name] ?? null);
     }
 }

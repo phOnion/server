@@ -5,9 +5,9 @@ use function GuzzleHttp\Psr7\parse_query;
 use function GuzzleHttp\Psr7\parse_request;
 use GuzzleHttp\Psr7\ServerRequest;
 use GuzzleHttp\Psr7\UploadedFile;
-use GuzzleHttp\Stream\StreamInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use function GuzzleHttp\Psr7\str;
 
 if (!function_exists(__NAMESPACE__ . '\build_request')) {
     function build_request($message): ServerRequestInterface {
@@ -90,27 +90,11 @@ if (!function_exists(__NAMESPACE__ . '\extract_multipart')) {
 }
 
 if (!function_exists(__NAMESPACE__ . '\send_response')) {
-    function send_response(ResponseInterface $response, StreamInterface $stream) {
-        $stream->write("HTTP/1.1 {$response->getStatusCode()} {$response->getReasonPhrase()}\n");
-        foreach ($response->getHeaders() as $header => $headers) {
-            foreach ($headers as $value) {
-                $stream->write("{$header}: {$value}\n");
-            }
-        }
-        $body = $response->getBody();
-        $size = $body->getSize();
-
-        if (!$response->hasHeader('content-length')) {
-
-            if ($size > 0) {
-                $stream->write("Content-Length: {$size}\n");
-            }
+    function send_response(ResponseInterface $response, Connection $connection) {
+        if ($connection->getCryptoOption('alpn_protocol') === 'h2') {
+            trigger_error('HTTP/2 Not implemented yet', E_USER_ERROR);
         }
 
-        $body->rewind();
-        $stream->write("\n");
-        while (!$body->eof()) {
-            $stream->write($body->read(4096));
-        }
+        $connection->send(str($response->withHeader('Content-Length', $response->getBody()->getSize())));
     }
 }

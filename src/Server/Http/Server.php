@@ -1,16 +1,17 @@
 <?php
-namespace Onion\Framework\Server;
+namespace Onion\Framework\Server\Http;
 
+use function GuzzleHttp\Psr7\str;
 use GuzzleHttp\Psr7\Response;
 use Onion\Framework\Promise\Interfaces\PromiseInterface;
 use Onion\Framework\Promise\Promise;
 use Onion\Framework\Promise\RejectedPromise;
 use Onion\Framework\Server\Connection;
 use Onion\Framework\Server\Interfaces\ServerInterface;
+use Onion\Framework\Server\Server as BaseServer;
 use Psr\Http\Message\ResponseInterface;
-use function GuzzleHttp\Psr7\str;
 
-class HttpServer extends Server implements ServerInterface
+class Server extends BaseServer implements ServerInterface
 {
     public function __construct()
     {
@@ -35,7 +36,7 @@ class HttpServer extends Server implements ServerInterface
                 }
 
                 $promise->then(function (ResponseInterface $response) use ($connection) {
-                    send_response($response, $connection);
+                    $connection->send(str($response->withHeader('Content-Length', $response->getBody()->getSize())));
                 })->finally(function () use ($request, $connection) {
                     if (!$request->hasHeader('connection') && stripos($request->getHeaderLine('connection'), 'keep-alive') === false) {
                         $connection->close();
@@ -51,7 +52,7 @@ class HttpServer extends Server implements ServerInterface
     protected function createContext(array $configs = [], bool $secure = false)
     {
         if ($this->hasAlpnSupport()) {
-            // $configs['alpn_protocols'] = 'h2, http/1.1';
+            $configs['alpn_protocols'] = 'h2, http/1.1';
         }
 
         return parent::createContext($configs, $secure);

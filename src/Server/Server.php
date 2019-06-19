@@ -11,12 +11,12 @@ use Onion\Framework\Promise\Interfaces\ThenableInterface;
 use Onion\Framework\Promise\Promise;
 use Onion\Framework\Promise\RejectedPromise;
 use Onion\Framework\Server\Interfaces\ServerInterface;
-use Onion\Framework\Server\Udp\Packet;
 
 class Server implements ServerInterface
 {
     private $listeners = [];
     private $handlers = [];
+    private $securedStreams = [];
 
     private $configuration = [];
 
@@ -128,7 +128,7 @@ class Server implements ServerInterface
         });
     }
 
-    private function createContext(array $configs = [], bool $secure = false)
+    protected function createContext(array $configs = [], bool $secure = false)
     {
         $context = stream_context_create();
         if (isset($configs['backlog'])) {
@@ -152,6 +152,7 @@ class Server implements ServerInterface
                 'verify_depth' => $configs['ssl_verify_depth'] ?? null,
                 'cafile' => $configs['ssl_client_cert_file'] ?? null,
                 'passphrase' => $configs['ssl_cert_passphrase'] ?? null,
+                'alpn_protocols' => $configs['alpn_protocols'] ?? null,
             ];
 
             $options = array_filter($options, function($value) {
@@ -172,19 +173,21 @@ class Server implements ServerInterface
         attach($socket, function (StreamInterface $stream) {
             $socket = $stream->detach();
             $stream->attach($socket);
-            stream_set_blocking($socket, false);
-
-            if (stream_context_get_options($socket)['ssl'] ?? false) {
-                stream_set_blocking($socket, true);
-                if (!@stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_SERVER)) {
-                    @fclose($socket);
-                    return;
-                }
-            }
 
             $channel = @stream_socket_accept($socket);
             @stream_set_read_buffer($channel, $this->getMaxPackageSize() + 8192);
             @stream_set_write_buffer($channel, $this->getMaxPackageSize() + 8192);
+
+            if (stream_context_get_options($channel)['ssl'] ?? false) {
+                stream_set_blocking($channel, true);
+                if(!@stream_socket_enable_crypto($channel, true, STREAM_CRYPTO_METHOD_TLS_SERVER, $channel)) {
+                    @fclose($channel);
+                    $this->trigger('close');
+                    return;
+                }
+
+                var_dump(stream_get_meta_data($channel));
+            }
             stream_set_blocking($channel, false);
 
             $this->trigger('connect', $stream);
