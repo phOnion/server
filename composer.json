@@ -9,7 +9,6 @@
         ]
     },
     "require": {
-        "onion/framework": "^2.0",
         "onion/event-loop": "dev-master",
         "onion/promise": "dev-master",
         "guzzlehttp/psr7": "^1.6"
