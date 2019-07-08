@@ -1,62 +1,59 @@
 <?php
 
-use GuzzleHttp\Psr7\Response;
-use GuzzleHttp\Stream\StreamInterface as TcpStream;
+use Onion\Framework\Event\Dispatcher;
+use Onion\Framework\Event\ListenerProviders\AggregateProvider;
+use Onion\Framework\Event\ListenerProviders\SimpleProvider;
+use Onion\Framework\Loop\Interfaces\ResourceInterface;
+use Onion\Framework\Loop\Scheduler;
+use Onion\Framework\Server\Contexts\SecureContext;
+use Onion\Framework\Server\Drivers\TcpDriver;
+use Onion\Framework\Server\Events\CloseEvent;
+use Onion\Framework\Server\Events\ConnectEvent;
+use Onion\Framework\Server\Events\MessageEvent;
+use Onion\Framework\Server\Events\StartEvent;
+use Onion\Framework\Server\Listeners\CryptoListener;
 use Onion\Framework\Server\Server as Server;
-use Onion\Framework\Server\Udp\Packet;
-use Psr\Http\Message\ServerRequestInterface;
-use function Onion\Framework\EventLoop\after;
+
 require __DIR__ . '/../vendor/autoload.php';
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-$server = new Server();
-$server->addListener('0.0.0.0', 1337, Server::TYPE_TCP);
-$server->addListener('0.0.0.0', 1338, Server::TYPE_TCP | Server::TYPE_SECURE, [
-    'ssl_cert_file' => __DIR__ . '/../localhost.cert',
-    'ssl_key_file' => __DIR__ . '/../localhost.key',
-    'ssl_allow_self_signed' => true,
-    'ssl_verify_peer' => false,
-]);
-$server->addListener('0.0.0.0', 1339, Server::TYPE_UDP);
+$provider = new AggregateProvider();
+$provider->addProvider(new SimpleProvider([
+    StartEvent::class => [function () { echo "Started\n"; }],
+    ConnectEvent::class => [
+        new CryptoListener,
+        function () { echo "Connected\n"; }
+    ],
+    CloseEvent::class => [function () { echo "Close\n"; }],
+    MessageEvent::class => [function (MessageEvent $event) {
+        $buffer = $event->getConnection();
 
-$server->on('start', function () {
-    echo "\nStart\n\r";
-});
+        $message = "Message: {$buffer->read(8192)}";
+        $length = strlen($message);
 
-// $server->on('request', function (ServerRequestInterface $request) {
-//     return new Response(200, [
-//         'content-type' => ['text/html'],
-//     ], 'Hello, World!');
-// });
+        $buffer->wait(ResourceInterface::OPERATION_WRITE);
+        $buffer->write("HTTP/1.1 200 OK\r\nContent-Length: {$length}\r\n\r\n{$message}\r\n");
+    }],
+]));
+$dispatcher = new Dispatcher($provider);
 
-$server->on('receive', function (TcpStream $stream) {
-    $resource = $stream->detach();
-    $stream->attach($resource);
+$baseListener = new TcpDriver($dispatcher);
+$secureCtx = new SecureContext;
+$secureCtx->setLocalCert(__DIR__ . '/../localhost.cert');
+$secureCtx->setLocalKey(__DIR__ . '/../localhost.key');
+$secureCtx->setAllowSelfSigned(true);
+$secureCtx->setVerifyPeer(false);
 
-    $buffer = $stream->getContents();
-    echo "< {$buffer}\n\r";
-    $stream->write($buffer);
-});
+$secureListener = new TcpDriver($dispatcher);
 
-$server->on('connect', function () {
-    after(1000, function () {
-        echo "Timer tick\n\r";
-    });
+$server = new Server($dispatcher);
 
-    echo "\nConnected\n\r";
-});
+$server->attach($baseListener, '0.0.0.0', 1337);
+$server->attach($secureListener, '0.0.0.0', 8443, $secureCtx);
 
-$server->on('close', function () {
-    echo "\nClosed\n\r";
-});
-
-$server->on('packet', function (Packet $packet) {
-    $data = $packet->read(1024, $address);
-    echo "< {$data}\n\r";
-    $packet->send($data, $address);
-});
-
-$server->start();
+$scheduler = new Scheduler;
+$scheduler->add($server->start());
+$scheduler->start();
