@@ -32,20 +32,20 @@ class TcpDriver implements DriverInterface
     {
         $socket = $this->createSocket($address, $port, $contexts);
 
-        $socket->unblock();
-        $socket->wait();
+        yield $socket->wait();
         while ($socket->isAlive()) {
-            yield $socket->wait();
             try {
                 $connection = $socket->accept();
             } catch (\InvalidArgumentException $ex) {
                 // Accept failed, we ok
                 continue;
             }
+
             yield $this->dispatcher->dispatch(new ConnectEvent($connection));
-            yield $connection->wait();
 
             while ($connection->isAlive()) {
+                yield $connection->wait();
+
                 yield $this->dispatcher->dispatch(new MessageEvent($connection));
                 if (!$connection->isAlive()) {
                     break;

@@ -13,6 +13,10 @@ use Onion\Framework\Server\Events\MessageEvent;
 use Onion\Framework\Server\Events\StartEvent;
 use Onion\Framework\Server\Listeners\CryptoListener;
 use Onion\Framework\Server\Server as Server;
+use Onion\Framework\Server\Events\PacketEvent;
+use Onion\Framework\Server\Drivers\UdpDriver;
+use Onion\Framework\Loop\Timer;
+use Onion\Framework\Loop\Coroutine;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -37,23 +41,39 @@ $provider->addProvider(new SimpleProvider([
         $buffer->wait(ResourceInterface::OPERATION_WRITE);
         $buffer->write("HTTP/1.1 200 OK\r\nContent-Length: {$length}\r\n\r\n{$message}\r\n");
     }],
+    PacketEvent::class => [
+        function (PacketEvent $event) {
+            var_dump($event->getConnection()->read(8192));
+        }
+    ]
 ]));
 $dispatcher = new Dispatcher($provider);
 
 $baseListener = new TcpDriver($dispatcher);
 $secureCtx = new SecureContext;
-$secureCtx->setLocalCert(__DIR__ . '/../localhost.cert');
-$secureCtx->setLocalKey(__DIR__ . '/../localhost.key');
+$secureCtx->setLocalCert(__DIR__ . '/localhost.cert');
+$secureCtx->setLocalKey(__DIR__ . '/localhost.key');
 $secureCtx->setAllowSelfSigned(true);
 $secureCtx->setVerifyPeer(false);
 
 $secureListener = new TcpDriver($dispatcher);
 
+$udpDriver = new UdpDriver($dispatcher);
+
 $server = new Server($dispatcher);
 
 $server->attach($baseListener, '0.0.0.0', 1337);
 $server->attach($secureListener, '0.0.0.0', 8443, $secureCtx);
+$server->attach($udpDriver, '0.0.0.0', 12345);
 
 $scheduler = new Scheduler;
 $scheduler->add($server->start());
+$scheduler->add(new Coroutine(function () {
+    yield Timer::interval(function () {
+        echo microtime(true) . PHP_EOL;
+        // sleep(1);
+
+        yield;
+    }, 500);
+}));
 $scheduler->start();

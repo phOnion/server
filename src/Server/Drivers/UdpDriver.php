@@ -28,9 +28,9 @@ class UdpDriver implements DriverInterface
     {
         $socket = $this->createSocket($address, $port, $contexts);
         $socket->unblock();
-        while ($socket->isAlive()) {
-            $socket->wait();
 
+        while ($socket->isAlive()) {
+            yield $socket->wait();
             yield $this->dispatcher->dispatch(new PacketEvent($socket));
         }
     }
