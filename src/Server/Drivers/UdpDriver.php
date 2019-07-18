@@ -27,7 +27,6 @@ class UdpDriver implements DriverInterface
     public function listen(string $address, ?int $port, ContextInterface ...$contexts): \Generator
     {
         $socket = $this->createSocket($address, $port, $contexts);
-        $socket->unblock();
 
         while ($socket->isAlive()) {
             yield $socket->wait();
