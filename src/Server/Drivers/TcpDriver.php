@@ -35,7 +35,7 @@ class TcpDriver implements DriverInterface
         yield $socket->wait();
         while ($socket->isAlive()) {
             try {
-                $connection = $socket->accept();
+                $connection = yield $socket->accept();
             } catch (\InvalidArgumentException $ex) {
                 // Accept failed, we ok
                 continue;
