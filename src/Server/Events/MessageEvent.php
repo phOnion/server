@@ -2,11 +2,13 @@
 namespace Onion\Framework\Server\Events;
 
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
+use Psr\EventDispatcher\StoppableEventInterface;
 
-class MessageEvent
+class MessageEvent implements StoppableEventInterface
 {
     private $connection;
-    private $message;
+
+    use StoppableTrait;
 
     public function __construct(ResourceInterface $resource)
     {

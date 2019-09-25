@@ -2,10 +2,13 @@
 namespace Onion\Framework\Server\Events;
 
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
+use Psr\EventDispatcher\StoppableEventInterface;
 
-class ConnectEvent
+class ConnectEvent implements StoppableEventInterface
 {
     private $connection;
+
+    use StoppableTrait;
 
     public function __construct(ResourceInterface $resource)
     {
