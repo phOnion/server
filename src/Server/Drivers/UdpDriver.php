@@ -1,6 +1,8 @@
 <?php
 namespace Onion\Framework\Server\Drivers;
 
+use Onion\Framework\Loop\Coroutine;
+use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Server\Events\PacketEvent;
 use Onion\Framework\Server\Interfaces\ContextInterface;
 use Onion\Framework\Server\Interfaces\DriverInterface;
@@ -28,9 +30,13 @@ class UdpDriver implements DriverInterface
     {
         $socket = $this->createSocket($address, $port, $contexts);
 
+
         while ($socket->isAlive()) {
             yield $socket->wait();
-            yield $this->dispatcher->dispatch(new PacketEvent($socket));
+
+            yield Coroutine::create(function (ResourceInterface $socket, EventDispatcherInterface $dispatcher) {
+                yield $dispatcher->dispatch(new PacketEvent($socket));
+            }, [$socket, $this->dispatcher]);
         }
     }
 }
