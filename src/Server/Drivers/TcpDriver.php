@@ -1,6 +1,9 @@
 <?php
 namespace Onion\Framework\Server\Drivers;
 
+use LogicException;
+use Onion\Framework\Loop\Coroutine;
+use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Server\Drivers\DriverTrait;
 use Onion\Framework\Server\Events\CloseEvent;
 use Onion\Framework\Server\Events\ConnectEvent;
@@ -32,30 +35,36 @@ class TcpDriver implements DriverInterface
     {
         $socket = $this->createSocket($address, $port, $contexts);
 
-        yield $socket->wait();
         while ($socket->isAlive()) {
             try {
                 $connection = yield $socket->accept();
-            } catch (\InvalidArgumentException $ex) {
+
+                yield Coroutine::create(function (ResourceInterface $connection, EventDispatcherInterface $dispatcher) {
+
+                    try {
+                        /** @var ConnectEvent $event */
+                        $event = yield $dispatcher->dispatch(new ConnectEvent($connection));
+
+                        while (!$event->isPropagationStopped() && $connection->isAlive()) {
+                            yield $connection->wait();
+
+                            yield $dispatcher->dispatch(new MessageEvent($connection));
+                            if (!$connection->isAlive()) {
+                                break;
+                            }
+                            yield;
+                        }
+
+                        if (!$connection->isAlive()) {
+                            yield $dispatcher->dispatch(new CloseEvent);
+                        }
+                    } catch (\LogicException $ex) {
+                        // Probably stream died mid event dispatching
+                    }
+
+                }, [$connection, $this->dispatcher]);
+            } catch (\InvalidArgumentException | LogicException $ex) {
                 // Accept failed, we ok
-                continue;
-            }
-
-            yield $this->dispatcher->dispatch(new ConnectEvent($connection));
-
-            while ($connection->isAlive()) {
-                yield $connection->wait();
-
-                yield $this->dispatcher->dispatch(new MessageEvent($connection));
-                if (!$connection->isAlive()) {
-                    break;
-                }
-                yield;
-            }
-
-            if (!$connection->isAlive()) {
-                yield $this->dispatcher->dispatch(new CloseEvent);
-                continue;
             }
 
             yield;
