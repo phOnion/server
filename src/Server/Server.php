@@ -16,7 +16,7 @@ class Server implements ServerInterface
     public function __construct(EventDispatcherInterface $dispatcher)
     {
         $this->dispatcher = $dispatcher;
-        $this->drivers = new \SplObjectStorage();
+        $this->drivers = [];
     }
 
     public function attach(
@@ -25,16 +25,16 @@ class Server implements ServerInterface
         ?int $port = null,
         ContextInterface ...$contexts
     ): void {
-        $this->drivers->attach($driver, [$address, $port, $contexts]);
+        $this->drivers[] = [$driver, $address, $port, $contexts];
     }
 
     public function start(): Coroutine {
         return new Coroutine(function () {
-            foreach ($this->drivers as $driver) {
-                yield Coroutine::create(function () use ($driver) {
-                    [$address, $port, $contexts] = $this->drivers->getInfo();
+            foreach ($this->drivers as $data) {
+                yield Coroutine::create(function () use ($data) {
+                    [$driver, $address, $port, $contexts] = $data;
 
-                    yield from $driver->listen($address, $port, ...$contexts);
+                    yield from $driver->listen($address, $port, ...($contexts ?? []));
                 });
             }
 
