@@ -3,20 +3,18 @@
 use Onion\Framework\Event\Dispatcher;
 use Onion\Framework\Event\ListenerProviders\AggregateProvider;
 use Onion\Framework\Event\ListenerProviders\SimpleProvider;
-use Onion\Framework\Loop\Interfaces\ResourceInterface;
+use Onion\Framework\Loop\Interfaces\AsyncResourceInterface;
 use Onion\Framework\Loop\Scheduler;
 use Onion\Framework\Server\Contexts\SecureContext;
 use Onion\Framework\Server\Drivers\TcpDriver;
+use Onion\Framework\Server\Drivers\UdpDriver;
 use Onion\Framework\Server\Events\CloseEvent;
 use Onion\Framework\Server\Events\ConnectEvent;
 use Onion\Framework\Server\Events\MessageEvent;
+use Onion\Framework\Server\Events\PacketEvent;
 use Onion\Framework\Server\Events\StartEvent;
 use Onion\Framework\Server\Listeners\CryptoListener;
 use Onion\Framework\Server\Server as Server;
-use Onion\Framework\Server\Events\PacketEvent;
-use Onion\Framework\Server\Drivers\UdpDriver;
-use Onion\Framework\Loop\Timer;
-use Onion\Framework\Loop\Coroutine;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -38,7 +36,7 @@ $provider->addProvider(new SimpleProvider([
         $message = "Message: {$buffer->read(8192)}";
         $length = strlen($message);
 
-        $buffer->wait(ResourceInterface::OPERATION_WRITE);
+        yield $buffer->wait(AsyncResourceInterface::OPERATION_WRITE);
         $buffer->write("HTTP/1.1 200 OK\r\nContent-Length: {$length}\r\n\r\n{$message}\r\n");
     }],
     PacketEvent::class => [
@@ -68,12 +66,4 @@ $server->attach($udpDriver, '0.0.0.0', 12345);
 
 $scheduler = new Scheduler;
 $scheduler->add($server->start());
-$scheduler->add(new Coroutine(function () {
-    yield Timer::interval(function () {
-        echo microtime(true) . PHP_EOL;
-        // sleep(1);
-
-        yield;
-    }, 500);
-}));
 $scheduler->start();
