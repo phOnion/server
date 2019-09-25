@@ -5,21 +5,25 @@ use Onion\Framework\Server\Events\ConnectEvent;
 
 class CryptoListener
 {
+    private $mode;
+
+    public function __construct(int $cryptoStream = STREAM_CRYPTO_METHOD_TLS_SERVER)
+    {
+        $this->mode = $cryptoStream;
+    }
+
     public function __invoke(ConnectEvent $event)
     {
         $socket = $event->getConnection();
         $context = stream_context_get_options($socket->getDescriptor());
         if (isset($context['ssl'])) {
-            $socket->block();
-            if (!@stream_socket_enable_crypto(
+            while ($success = @stream_socket_enable_crypto(
                 $socket->getDescriptor(),
                 true,
-                STREAM_CRYPTO_METHOD_ANY_SERVER,
+                $this->mode,
                 $socket->getDescriptor()
-            )) {
-                $socket->close();
-            } else {
-                $socket->unblock();
+            ) === 0) {
+                yield;
             }
         }
     }
