@@ -1,22 +1,20 @@
 <?php
+
 namespace Onion\Framework\Server\Events;
 
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
-use Psr\EventDispatcher\StoppableEventInterface;
 
-class ConnectEvent implements StoppableEventInterface
+abstract class ConnectionEvent
 {
-    private $connection;
-
-    use StoppableTrait;
+    private ResourceInterface $resource;
 
     public function __construct(ResourceInterface $resource)
     {
-        $this->connection = $resource;
+        $this->resource = $resource;
     }
 
     public function getConnection(): ResourceInterface
     {
-        return $this->connection;
+        return $this->resource;
     }
 }

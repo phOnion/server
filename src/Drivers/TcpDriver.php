@@ -1,25 +1,28 @@
 <?php
+
 namespace Onion\Framework\Server\Drivers;
 
+use InvalidArgumentException;
 use LogicException;
-use Onion\Framework\Loop\Coroutine;
 use Onion\Framework\Loop\Interfaces\ResourceInterface;
 use Onion\Framework\Server\Drivers\DriverTrait;
 use Onion\Framework\Server\Events\CloseEvent;
 use Onion\Framework\Server\Events\ConnectEvent;
+use Onion\Framework\Server\Events\ConnectionEvent;
 use Onion\Framework\Server\Events\MessageEvent;
 use Onion\Framework\Server\Events\StopEvent;
 use Onion\Framework\Server\Interfaces\ContextInterface;
 use Onion\Framework\Server\Interfaces\DriverInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
+use function Onion\Framework\Loop\coroutine;
+
 class TcpDriver implements DriverInterface
 {
-    protected const SOCKET_FLAGS = STREAM_SERVER_BIND | STREAM_SERVER_LISTEN;
-
-    private $dispatcher;
-
     use DriverTrait;
+
+    private EventDispatcherInterface $dispatcher;
+
 
     public function __construct(EventDispatcherInterface $dispatcher)
     {
@@ -31,45 +34,42 @@ class TcpDriver implements DriverInterface
         return file_exists($address) ? 'unix' : 'tcp';
     }
 
-    public function listen(string $address, ?int $port, ContextInterface ...$contexts): \Generator
+    public function listen(string $address, ?int $port, ContextInterface ...$contexts): void
     {
-        $socket = $this->createSocket($address, $port, $contexts);
+        $socket = $this->createSocket($address, $port, $contexts, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN);
 
         while ($socket->isAlive()) {
             try {
-                $connection = yield $socket->accept();
+                $connection = $socket->accept();
 
-                yield Coroutine::create(function (ResourceInterface $connection, EventDispatcherInterface $dispatcher) {
+                coroutine(function (ResourceInterface $connection, EventDispatcherInterface $dispatcher) {
 
                     try {
                         /** @var ConnectEvent $event */
-                        $event = yield $dispatcher->dispatch(new ConnectEvent($connection));
+                        $event = $dispatcher->dispatch(new ConnectEvent($connection));
+                        $connection = $event->getConnection();
+                        while ($connection->isAlive()) {
+                            $connection->wait();
 
-                        while (!$event->isPropagationStopped() && $connection->isAlive()) {
-                            yield $connection->wait();
-
-                            yield $dispatcher->dispatch(new MessageEvent($connection));
+                            $dispatcher->dispatch(new MessageEvent($connection));
                             if (!$connection->isAlive()) {
                                 break;
                             }
-                            yield;
                         }
 
                         if (!$connection->isAlive()) {
-                            yield $dispatcher->dispatch(new CloseEvent);
+                            $dispatcher->dispatch(new CloseEvent($connection));
                         }
-                    } catch (\LogicException $ex) {
+                    } catch (LogicException $ex) {
                         // Probably stream died mid event dispatching
                     }
-
                 }, [$connection, $this->dispatcher]);
-            } catch (\InvalidArgumentException | LogicException $ex) {
+            } catch (InvalidArgumentException | LogicException $ex) {
                 // Accept failed, we ok
             }
-
-            yield;
         }
 
-        yield $this->dispatcher->dispatch(new StopEvent($socket));
+        $this->dispatcher->dispatch(new CloseEvent($socket));
+        $this->dispatcher->dispatch(new StopEvent());
     }
 }

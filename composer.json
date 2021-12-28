@@ -1,18 +1,19 @@
 {
-    "name": "onion/server",
-    "autoload": {
-        "psr-4": {
-            "Onion\\Framework\\": "src/"
-        }
-    },
-    "require": {
-        "onion/event-loop": "dev-master",
-        "onion/promise": "dev-master"
-    },
-    "require-dev": {
-        "roave/security-advisories": "dev-master"
-    },
-    "suggest": {
-        "onion/websocket": "websocket server & client implementations"
+  "name": "onion/server",
+  "autoload": {
+    "psr-4": {
+      "Onion\\Framework\\Server\\": "src/"
     }
+  },
+  "require": {
+    "onion/event-loop": "@dev",
+    "onion/interfaces": "@dev",
+    "guzzlehttp/psr7": "^2.1"
+  },
+  "require-dev": {
+    "roave/security-advisories": "dev-master"
+  },
+  "suggest": {
+    "onion/websocket": "websocket server & client implementations"
+  }
 }

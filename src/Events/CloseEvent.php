@@ -1,7 +1,8 @@
 <?php
+
 namespace Onion\Framework\Server\Events;
 
-class CloseEvent
+class CloseEvent extends ConnectionEvent
 {
 
 }

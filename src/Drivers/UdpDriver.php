@@ -1,4 +1,5 @@
 <?php
+
 namespace Onion\Framework\Server\Drivers;
 
 use Onion\Framework\Loop\Coroutine;
@@ -10,11 +11,9 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 
 class UdpDriver implements DriverInterface
 {
-    protected const SOCKET_FLAGS = STREAM_SERVER_BIND;
-
-    private $dispatcher;
-
     use DriverTrait;
+
+    private EventDispatcherInterface $dispatcher;
 
     public function __construct(EventDispatcherInterface $dispatcher)
     {
@@ -26,17 +25,15 @@ class UdpDriver implements DriverInterface
         return file_exists($address) ? 'unix' : 'udp';
     }
 
-    public function listen(string $address, ?int $port, ContextInterface ...$contexts): \Generator
+    public function listen(string $address, ?int $port, ContextInterface ...$contexts): void
     {
-        $socket = $this->createSocket($address, $port, $contexts);
+        $socket = $this->createSocket($address, $port, $contexts, STREAM_SERVER_BIND);
 
 
         while ($socket->isAlive()) {
-            yield $socket->wait();
+            $socket->wait();
 
-            yield Coroutine::create(function (ResourceInterface $socket, EventDispatcherInterface $dispatcher) {
-                yield $dispatcher->dispatch(new PacketEvent($socket));
-            }, [$socket, $this->dispatcher]);
+            $this->dispatcher->dispatch(new PacketEvent($socket));
         }
     }
 }

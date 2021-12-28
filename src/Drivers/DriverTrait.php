@@ -1,11 +1,12 @@
 <?php
+
 namespace Onion\Framework\Server\Drivers;
 
 use Onion\Framework\Loop\Socket;
 
 trait DriverTrait
 {
-    protected function createSocket(string $interface, ?int $port, array $contexts)
+    protected function createSocket(string $interface, ?int $port, array $contexts, int $flags): \Onion\Framework\Loop\Socket
     {
         $ctxOptions = [];
         foreach ($contexts as $context) {
@@ -16,7 +17,7 @@ trait DriverTrait
             "{$this->getScheme($interface)}://{$interface}:{$port}",
             $error,
             $message,
-            static::SOCKET_FLAGS,
+            $flags,
             stream_context_create($ctxOptions)
         );
 

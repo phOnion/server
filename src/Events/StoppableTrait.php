@@ -1,9 +1,10 @@
 <?php
+
 namespace Onion\Framework\Server\Events;
 
 trait StoppableTrait
 {
-    private $terminated = false;
+    private bool $terminated = false;
 
     public function stopPropagation(): void
     {

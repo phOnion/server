@@ -1,6 +1,8 @@
 <?php
+
 namespace Onion\Framework\Server;
 
+use Generator;
 use Onion\Framework\Loop\Coroutine;
 use Onion\Framework\Server\Events\StartEvent;
 use Onion\Framework\Server\Interfaces\ContextInterface;
@@ -8,10 +10,13 @@ use Onion\Framework\Server\Interfaces\DriverInterface;
 use Onion\Framework\Server\Interfaces\ServerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
+use function Onion\Framework\Loop\coroutine;
+use function Onion\Framework\Loop\tick;
+
 class Server implements ServerInterface
 {
-    private $dispatcher;
-    private $drivers;
+    private EventDispatcherInterface $dispatcher;
+    private array $drivers;
 
     public function __construct(EventDispatcherInterface $dispatcher)
     {
@@ -28,17 +33,19 @@ class Server implements ServerInterface
         $this->drivers[] = [$driver, $address, $port, $contexts];
     }
 
-    public function start(): Coroutine {
-        return new Coroutine(function () {
+    public function start(): void
+    {
+        coroutine(function (): void {
             foreach ($this->drivers as $data) {
-                yield Coroutine::create(function () use ($data) {
+                coroutine(function () use ($data) {
                     [$driver, $address, $port, $contexts] = $data;
 
-                    yield from $driver->listen($address, $port, ...($contexts ?? []));
+                    $driver->listen($address, $port, ...($contexts ?? []));
                 });
+                tick();
             }
 
-            yield $this->dispatcher->dispatch(new StartEvent());
+            $this->dispatcher->dispatch(new StartEvent());
         });
     }
 }
