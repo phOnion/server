@@ -7,11 +7,15 @@
   },
   "require": {
     "onion/event-loop": "@dev",
-    "onion/interfaces": "@dev",
-    "guzzlehttp/psr7": "^2.1"
+    "onion/interfaces": "@dev"
   },
   "require-dev": {
-    "roave/security-advisories": "dev-master"
+    "roave/security-advisories": "dev-master",
+    "squizlabs/php_codesniffer": "^3.6"
+  },
+  "scripts": {
+    "fix": "phpcbf --standard=psr12 src/",
+    "lint": "phpcs --standard=psr12 src/"
   },
   "suggest": {
     "onion/websocket": "websocket server & client implementations"
