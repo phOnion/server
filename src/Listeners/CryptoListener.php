@@ -17,7 +17,7 @@ class CryptoListener
 
     public function __invoke(ConnectEvent $event)
     {
-        $socket = $event->getConnection();
+        $socket = $event->connection;
         $context = stream_context_get_options($socket->getResource());
         if (isset($context['ssl'])) {
             while (

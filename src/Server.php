@@ -2,9 +2,8 @@
 
 namespace Onion\Framework\Server;
 
-use Generator;
-use Onion\Framework\Loop\Coroutine;
 use Onion\Framework\Server\Events\StartEvent;
+use Onion\Framework\Server\Events\StopEvent;
 use Onion\Framework\Server\Interfaces\ContextInterface;
 use Onion\Framework\Server\Interfaces\DriverInterface;
 use Onion\Framework\Server\Interfaces\ServerInterface;
@@ -47,5 +46,7 @@ class Server implements ServerInterface
 
             $this->dispatcher->dispatch(new StartEvent());
         });
+
+        register_shutdown_function(fn () => coroutine(fn () => $this->dispatcher->dispatch(new StopEvent())));
     }
 }

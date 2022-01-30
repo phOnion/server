@@ -3,11 +3,7 @@
 use Onion\Framework\Event\Dispatcher;
 use Onion\Framework\Event\ListenerProviders\AggregateProvider;
 use Onion\Framework\Event\ListenerProviders\SimpleProvider;
-use Onion\Framework\Loop\Scheduler;
-use Onion\Framework\Loop\Types\Operation;
-use Onion\Framework\Server\Contexts\SecureContext;
-use Onion\Framework\Server\Drivers\TcpDriver;
-use Onion\Framework\Server\Drivers\UdpDriver;
+use Onion\Framework\Server\Drivers\NetworkDriver;
 use Onion\Framework\Server\Events\CloseEvent;
 use Onion\Framework\Server\Events\ConnectEvent;
 use Onion\Framework\Server\Events\MessageEvent;
@@ -17,6 +13,7 @@ use Onion\Framework\Server\Listeners\CryptoListener;
 use Onion\Framework\Server\Server as Server;
 
 use function Onion\Framework\Loop\scheduler;
+use Onion\Framework\Loop\Types\Operation;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -38,40 +35,38 @@ $provider->addProvider(new SimpleProvider([
     CloseEvent::class => [function () {
         echo "Close\n";
     }],
-    MessageEvent::class => [function (MessageEvent $event) {
-        $buffer = $event->getConnection();
-
-        $message = "Message: {$buffer->read(8192)}";
-        $length = strlen($message);
-
-        $buffer->wait(Operation::WRITE);
-        $buffer->write("HTTP/1.1 200 OK\r\nContent-Length: {$length}\r\n\r\n{$message}\r\n");
-        $buffer->close();
-    }],
+    MessageEvent::class => [
+        function (MessageEvent $ev) {
+            echo "Message\n";
+            $ev->connection->close();
+        }
+    ],
     PacketEvent::class => [
         function (PacketEvent $event) {
-            var_dump($event->getConnection()->read(8192));
-        }
-    ]
+            var_dump($event->connection->read(8192));
+            $event->connection->write('RECEIVED');
+        },
+    ],
 ]));
 $dispatcher = new Dispatcher($provider);
 
-$baseListener = new TcpDriver($dispatcher);
+$baseListener = new NetworkDriver($dispatcher);
 // $secureCtx = new SecureContext;
 // $secureCtx->setLocalCert(__DIR__ . '/localhost.cert');
 // $secureCtx->setLocalKey(__DIR__ . '/localhost.key');
 // $secureCtx->setAllowSelfSigned(true);
 // $secureCtx->setVerifyPeer(false);
+// $secureListener = new NetworkDriver($dispatcher);
 
-$secureListener = new TcpDriver($dispatcher);
-
-$udpDriver = new UdpDriver($dispatcher);
+// $udpDriver = new UdpDriver($dispatcher);
 
 $server = new Server($dispatcher);
 
-$server->attach($baseListener, '0.0.0.0', 1337);
+$driver = new NetworkDriver($dispatcher);
+$server->attach($driver, 'tcp://0.0.0.0', 8080);
+$server->attach($driver, 'udp://0.0.0.0', 12345);
 // $server->attach($secureListener, '0.0.0.0', 8443, $secureCtx);
-$server->attach($udpDriver, '0.0.0.0', 12345);
+// $server->attach($udpDriver, '0.0.0.0', 12345);
 
 $server->start();
 scheduler()->start();
