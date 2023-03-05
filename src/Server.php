@@ -23,25 +23,16 @@ class Server implements ServerInterface
         $this->drivers = [];
     }
 
-    public function attach(
-        DriverInterface $driver,
-        string $address,
-        ?int $port = null,
-        ContextInterface ...$contexts
-    ): void {
-        $this->drivers[] = [$driver, $address, $port, $contexts];
+    public function attach(DriverInterface $driver): void
+    {
+        $this->drivers[] = $driver;
     }
 
     public function start(): void
     {
         coroutine(function (): void {
-            foreach ($this->drivers as $data) {
-                coroutine(function () use ($data) {
-                    [$driver, $address, $port, $contexts] = $data;
-
-                    $driver->listen($address, $port, ...($contexts ?? []));
-                });
-                tick();
+            foreach ($this->drivers as $driver) {
+                coroutine($driver->listen(...), [$this->dispatcher]);
             }
 
             $this->dispatcher->dispatch(new StartEvent());
