@@ -2,6 +2,8 @@
 
 namespace Onion\Framework\Server\Drivers;
 
+use Onion\Framework\Loop\Interfaces\SchedulerInterface;
+use Onion\Framework\Loop\Interfaces\TaskInterface;
 use Onion\Framework\Loop\Types\NetworkAddress;
 use Onion\Framework\Loop\Types\NetworkProtocol;
 use Onion\Framework\Server\Contexts\AggregateContext;
@@ -12,7 +14,7 @@ use Onion\Framework\Server\Interfaces\ContextInterface;
 use Onion\Framework\Server\Interfaces\DriverInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
-use function Onion\Framework\Loop\scheduler;
+use function Onion\Framework\Loop\signal;
 
 class NetworkDriver implements DriverInterface
 {
@@ -29,8 +31,7 @@ class NetworkDriver implements DriverInterface
 
     public function listen(EventDispatcherInterface $dispatcher): void
     {
-        $scheduler = scheduler();
-        $scheduler->open(
+        signal(fn ($resume, TaskInterface $task, SchedulerInterface $scheduler) => $resume($scheduler->open(
             $this->address,
             $this->port,
             fn ($connection) => $dispatcher->dispatch(
@@ -48,6 +49,6 @@ class NetworkDriver implements DriverInterface
                 Scheme::UNIX, Scheme::UDG => NetworkAddress::LOCAL,
                 Scheme::TCP, Scheme::UDP => NetworkAddress::NETWORK
             }
-        );
+        )));
     }
 }
